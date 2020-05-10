@@ -1219,6 +1219,13 @@ class SawyerCircus(SawyerThreadingRing):
     #             np.array(self.sim.data.geom_xmat[self.sim.model.geom_name2id("block_handle")]).reshape(3, 3)
     #         )
 
+    #         # tip location from rod + handle locations
+    #         rod_dir = rod_pos - handle_pos
+    #         rod_dir /= np.linalg.norm(rod_dir)
+    #         tip_pos = rod_pos + 0.06 * rod_dir
+    #         tip_quat = rod_quat
+
+
     #         # ring position is average of all the surrounding ring geom positions
     #         ring_pos = np.zeros(3)
     #         for i in range(self.num_ring_geoms):
@@ -1237,19 +1244,19 @@ class SawyerCircus(SawyerThreadingRing):
     #         di["handle_to_eef_pos"] = rel_pos
     #         di["handle_to_eef_quat"] = rel_quat
 
-    #         rod_pose = T.pose2mat((rod_pos, rod_quat))
-    #         world_pose_in_rod = T.pose_inv(rod_pose)
+    #         tip_pose = T.pose2mat((tip_pos, tip_quat))
+    #         world_pose_in_tip = T.pose_inv(tip_pose)
     #         ring_pose = T.pose2mat((ring_pos, ring_quat))
-    #         rel_pose = T.pose_in_A_to_pose_in_B(ring_pose, world_pose_in_rod)
+    #         rel_pose = T.pose_in_A_to_pose_in_B(ring_pose, world_pose_in_tip)
     #         rel_pos, rel_quat = T.mat2pose(rel_pose)
-    #         di["ring_to_rod_pos"] = rel_pos
-    #         di["ring_to_rod_quat"] = rel_quat
+    #         di["ring_to_tip_pos"] = rel_pos
+    #         di["ring_to_tip_quat"] = rel_quat
 
     #         di["object-state"] = np.concatenate([
     #             di["handle_to_eef_pos"],
     #             di["handle_to_eef_quat"],
-    #             di["ring_to_rod_pos"],
-    #             di["ring_to_rod_quat"]
+    #             di["ring_to_tip_pos"],
+    #             di["ring_to_tip_quat"]
     #         ])
 
     #     return di
