@@ -640,7 +640,7 @@ class SawyerLiftPositionTarget(SawyerLift):
 
         self._target_name = 'cube_target'
         self._object_name = 'cube'
-        self.interactive_objects = {}
+        self.interactive_objects = OrderedDict()
 
         assert 'placement_initializer' not in kwargs
         kwargs['placement_initializer'] = self._get_default_initializer()
@@ -1041,6 +1041,32 @@ class SawyerPositionTargetPress(SawyerLiftPositionTarget):
         self.interactive_objects['button'].activate()
         return ret
 
+    def _get_observation(self):
+        """
+        Returns an OrderedDict containing observations [(name_string, np.array), ...].
+        """
+        di = super()._get_observation()
+
+        gripper_site_pos = np.array(self.sim.data.site_xpos[self.eef_site_id])
+        cube_pos = np.array(self.sim.data.body_xpos[self.cube_body_id])
+        cube_quat = np.array(self.sim.data.body_xquat[self.cube_body_id])
+        gripper_to_cube = gripper_site_pos - cube_pos
+
+        button_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id("button")])
+        button_quat = np.array(self.sim.data.body_xquat[self.sim.model.body_name2id("button")])
+        gripper_to_button = gripper_site_pos - button_pos
+        ostate = np.hstack([o.flat_state for o in self.interactive_objects.values()])
+        di["object-state"] = np.concatenate(
+            [cube_pos, cube_quat, gripper_to_cube, button_pos, button_quat, gripper_to_button, ostate]
+        )
+
+        di["object-goal-state"] = np.concatenate(
+            [cube_pos, button_pos, ostate]
+        )
+
+        di["task_id"] = np.array([1.0])
+        return di
+
     def _get_goal(self):
         """
         Get goal observation by moving object to the target, get obs, and move back.
@@ -1067,8 +1093,20 @@ class SawyerPositionTargetPress(SawyerLiftPositionTarget):
 
 
 class SawyerPositionPress(SawyerPositionTargetPress):
+    def _get_observation(self):
+        di = super()._get_observation()
+        di["task_id"] = np.array([0.0])
+        return di
+
     def _set_state_to_goal(self):
         self.interactive_objects['button'].activate()
+
+    def _reset_internal(self):
+        super()._reset_internal()
+        pos = self.sim.data.body_xpos[self.cube_body_id]
+        quat = self.sim.data.body_xquat[self.cube_body_id]
+        EU.set_body_pose(self.sim, self._target_name, pos=pos, quat=quat)
+        self.sim.forward()
 
     def _check_success(self):
         state_name = self.interactive_objects['button'].state_name
@@ -1076,6 +1114,11 @@ class SawyerPositionPress(SawyerPositionTargetPress):
 
 
 class SawyerPositionTarget(SawyerPositionTargetPress):
+    def _get_observation(self):
+        di = super()._get_observation()
+        di["task_id"] = np.array([1.0])
+        return di
+
     def _set_state_to_goal(self):
         SawyerLiftPositionTarget._set_state_to_goal(self)
 
