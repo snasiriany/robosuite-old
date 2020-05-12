@@ -483,13 +483,35 @@ class SawyerFitPushLongBar(SawyerFit):
         initializer.sample_on_top(
             "block",
             surface_name="hole",
-            x_range=[-0.3, -0.1],
-            y_range=[-0.3, -0.1],
-            z_rotation=None,
-            # z_offset=0.2,
+            x_range=[-0.1, -0.1],
+            y_range=[-0.1, -0.1],
+            z_rotation=0.,
             ensure_object_boundary_in_range=False,
         )
         return initializer
+
+    def _grid_bounds_for_eval_mode(self):
+        """
+        Helper function to get grid bounds of x positions, y positions, 
+        and z-rotations for reproducible evaluations, and number of points
+        per dimension.
+        """
+        ret = {}
+
+        # (low, high, number of grid points for this dimension)
+        hole_x_bounds = (0., 0., 1)
+        hole_y_bounds = (0., 0., 1)
+        hole_z_rot_bounds = (0., 0., 1)
+        hole_z_offset = 0.
+        ret["hole"] = [hole_x_bounds, hole_y_bounds, hole_z_rot_bounds, hole_z_offset]
+
+        block_x_bounds = (-0.1, -0.1, 1)
+        block_y_bounds = (-0.1, -0.1, 1)
+        block_z_rot_bounds = (0., 0. * np.pi, 1)
+        block_z_offset = 0.
+        ret["block"] = [block_x_bounds, block_y_bounds, block_z_rot_bounds, block_z_offset]
+
+        return ret
 
     def _load_model(self):
         """
@@ -509,7 +531,7 @@ class SawyerFitPushLongBar(SawyerFit):
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
 
         TOLERANCE = 1.03
-        self.obj_size = np.array([0.05, 0.015, 0.01])
+        self.obj_size = np.array([0.05, 0.015, 0.015])
         self.hole_size = TOLERANCE * self.obj_size
 
         piece = BoxObject(
@@ -517,26 +539,31 @@ class SawyerFitPushLongBar(SawyerFit):
             rgba=[1, 0, 0, 1],
         )
 
-        self.hole = BoundingObject(
-            size=[0.4, 0.4, 0.02],
-            hole_size=self.hole_size, 
-            joint=[],
-            rgba=[0, 0, 1, 1],
-            hole_rgba=[0, 1, 0, 1],
-        )
-
-        # self.hole_size = np.array([0.05, 0.05, 0.01])
-        # pattern = [np.eye(5)]
-        # unit_size = 0.01
-        # self.hole = BoundingPatternObject(
-        #     unit_size,
-        #     pattern,
-        #     size=[0.2, 0.2, 0.02],
+        # self.hole = BoundingObject(
+        #     size=[0.4, 0.4, 0.02],
         #     hole_size=self.hole_size, 
         #     joint=[],
         #     rgba=[0, 0, 1, 1],
         #     hole_rgba=[0, 1, 0, 1],
         # )
+
+        # hole pattern to prop bar upright
+        pattern = np.ones((3, 6, 6))
+        pattern[0][1:-1, 1:-1] = 0.
+        pattern[1][1:-1, 1:-1] = 0.
+        pattern[2] = np.zeros((6, 6))
+        unit_size = [0.004, 0.004, 0.015]
+        self.hole = BoundingPatternObject(
+            unit_size=unit_size,
+            pattern=pattern,
+            size=[0.4, 0.4, 0.05],
+            hole_location=[0.3, 0],
+            joint=[],
+            # rgba=[0, 0, 1, 1],
+            rgba=[0.627, 0.627, 0.627, 1],
+            hole_rgba=[0, 1, 0, 1],
+            pattern_rgba=[0, 1, 1, 1],
+        )
 
         self.mujoco_objects = OrderedDict([
             ("block", piece), 
@@ -555,6 +582,20 @@ class SawyerFitPushLongBar(SawyerFit):
             initializer=self.placement_initializer,
         )
         self.model.place_objects()
+
+    def _pre_action(self, action, policy_step=None):
+        """
+        Last gripper dimensions of action are ignored.
+        """
+        # close gripper
+        # action[-self.gripper.dof:] = 1.
+        super()._pre_action(action, policy_step=policy_step)
+
+    def _check_success(self):
+        """
+        Returns True if task has been completed.
+        """
+        return False
 
 
 class SawyerThreading(SawyerFit):
@@ -884,9 +925,11 @@ class SawyerThreadingRing(SawyerThreadingPrecise):
     def __init__(
         self,
         use_post=True,
+        hide_rod=False,
         **kwargs
     ):
         self.use_post = use_post
+        self.hide_rod = hide_rod
         super().__init__(**kwargs)
 
     def _get_default_initializer(self):
@@ -966,10 +1009,13 @@ class SawyerThreadingRing(SawyerThreadingPrecise):
             [0., 2. * thread_size[1], 0.],
         ]
         geom_names = ["thread", "handle"]
-        geom_rgbas = [
-            [1, 0, 0, 1],
-            [0, 0, 1, 1],
-        ]
+        if self.hide_rod:
+            geom_rgbas = [[0, 0, 0, 0], [0, 0, 0, 0]]
+        else:
+            geom_rgbas = [
+                [1, 0, 0, 1],
+                [0, 0, 1, 1],
+            ]
         # make the thread low friction to ensure easy insertion
         geom_frictions = [
             [0.3, 5e-3, 1e-4],
@@ -1000,7 +1046,7 @@ class SawyerThreadingRing(SawyerThreadingPrecise):
             
         # make ring low friction for easy insertion
         ring_friction = [0.3, 5e-3, 1e-4] 
-        ring_geom_args = BoxPatternObject._geoms_from_init(None, unit_size, pattern, friction=ring_friction)
+        ring_geom_args = BoxPatternObject._geoms_from_init(None, unit_size, pattern, rgba=None, friction=ring_friction)
         self.num_ring_geoms = len(ring_geom_args["geom_locations"])
         ring_geom_args["geom_rgbas"] = [ring_color for _ in range(self.num_ring_geoms)]
         ring_geom_args["geom_types"] = ["box" for _ in range(self.num_ring_geoms)]
@@ -1145,8 +1191,215 @@ class SawyerCircus(SawyerThreadingRing):
 
         return ret
 
+    # def _get_observation(self):
+    #     """
+    #     Returns an OrderedDict containing observations [(name_string, np.array), ...].
+
+    #     Important keys:
+    #         robot-state: contains robot-centric information.
+    #         object-state: requires @self.use_object_obs to be True.
+    #             contains object-centric information.
+    #         image: requires @self.use_camera_obs to be True.
+    #             contains a rendered frame from the simulation.
+    #         depth: requires @self.use_camera_obs and @self.camera_depth to be True.
+    #             contains a rendered depth map from the simulation
+    #     """
+    #     di = super()._get_observation()
+
+    #     # low-level object information
+    #     if self.use_object_obs:
+
+    #         # locations
+    #         rod_pos = np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("block_thread")])
+    #         rod_quat = T.mat2quat(
+    #             np.array(self.sim.data.geom_xmat[self.sim.model.geom_name2id("block_thread")]).reshape(3, 3)
+    #         )
+    #         handle_pos = np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("block_handle")])
+    #         handle_quat = T.mat2quat(
+    #             np.array(self.sim.data.geom_xmat[self.sim.model.geom_name2id("block_handle")]).reshape(3, 3)
+    #         )
+
+    #         # tip location from rod + handle locations
+    #         rod_dir = rod_pos - handle_pos
+    #         rod_dir /= np.linalg.norm(rod_dir)
+    #         tip_pos = rod_pos + 0.06 * rod_dir
+    #         tip_quat = rod_quat
+
+
+    #         # ring position is average of all the surrounding ring geom positions
+    #         ring_pos = np.zeros(3)
+    #         for i in range(self.num_ring_geoms):
+    #             ring_pos += np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("hole_ring_{}".format(i))])
+    #         ring_pos /= self.num_ring_geoms
+    #         ring_quat = T.mat2quat(
+    #             np.array(self.sim.data.geom_xmat[self.sim.model.geom_name2id("hole_ring_0")]).reshape(3, 3)
+    #         )
+
+    #         # include relative pose of handle to eef and ring to rod
+    #         gripper_pose = T.pose2mat((di["eef_pos"], di["eef_quat"]))
+    #         world_pose_in_gripper = T.pose_inv(gripper_pose)
+    #         handle_pose = T.pose2mat((handle_pos, handle_quat))
+    #         rel_pose = T.pose_in_A_to_pose_in_B(handle_pose, world_pose_in_gripper)
+    #         rel_pos, rel_quat = T.mat2pose(rel_pose)
+    #         di["handle_to_eef_pos"] = rel_pos
+    #         di["handle_to_eef_quat"] = rel_quat
+
+    #         tip_pose = T.pose2mat((tip_pos, tip_quat))
+    #         world_pose_in_tip = T.pose_inv(tip_pose)
+    #         ring_pose = T.pose2mat((ring_pos, ring_quat))
+    #         rel_pose = T.pose_in_A_to_pose_in_B(ring_pose, world_pose_in_tip)
+    #         rel_pos, rel_quat = T.mat2pose(rel_pose)
+    #         di["ring_to_tip_pos"] = rel_pos
+    #         di["ring_to_tip_quat"] = rel_quat
+
+    #         di["object-state"] = np.concatenate([
+    #             di["handle_to_eef_pos"],
+    #             di["handle_to_eef_quat"],
+    #             di["ring_to_tip_pos"],
+    #             di["ring_to_tip_quat"]
+    #         ])
+
+    #     return di
+
 
 class SawyerCircusTest(SawyerCircus):
+    """Threading task."""
+    def _grid_bounds_for_eval_mode(self):
+        """
+        Helper function to get grid bounds of x positions, y positions, 
+        and z-rotations for reproducible evaluations, and number of points
+        per dimension.
+        """
+        ret = super()._grid_bounds_for_eval_mode()
+
+        # augment old spacing by half grid width to ensure no overlap in grid points
+        old_spacing = (ret["hole"][0][1] - ret["hole"][0][0]) / ret["hole"][0][2]
+        offset = old_spacing / 2.
+        ret["hole"][0] = (ret["hole"][0][0] + offset, ret["hole"][0][1] + offset, ret["hole"][0][2])
+        return ret
+
+
+class SawyerCircusEasy(SawyerCircus):
+    """Threading task."""
+    def __init__(
+        self,
+        **kwargs
+    ):
+        # assert("use_post" not in kwargs)
+        # kwargs["use_post"] = False
+        assert "gripper_type" not in kwargs
+        kwargs["gripper_type"] = "TwoFingerGripperWithRod"
+        assert "hide_rod" not in kwargs
+        kwargs["hide_rod"] = True
+        super().__init__(**kwargs)
+
+    def _grid_bounds_for_eval_mode(self):
+        """
+        Helper function to get grid bounds of x positions, y positions, 
+        and z-rotations for reproducible evaluations, and number of points
+        per dimension.
+        """
+        ret = super()._grid_bounds_for_eval_mode()
+
+        # (low, high, number of grid points for this dimension)
+        hole_x_bounds = (0.0, 0.15, 9)
+        hole_y_bounds = (-0.15, -0.15, 1)
+        hole_z_rot_bounds = (np.pi / 3., np.pi / 3., 1)
+        hole_z_offset = 0.001
+        ret["hole"] = [hole_x_bounds, hole_y_bounds, hole_z_rot_bounds, hole_z_offset]
+
+        return ret
+
+    def _pre_action(self, action, policy_step=None):
+        """
+        Last gripper dimensions of action are ignored.
+        """
+
+        # close gripper
+        action[-self.gripper.dof:] = 1.
+
+        super()._pre_action(action, policy_step=policy_step)
+
+    def _get_reference(self):
+        """
+        Sets up references to important components. A reference is typically an
+        index or a list of indices that point to the corresponding elements
+        in a flatten array, which is how MuJoCo stores physical simulation data.
+        """
+        super()._get_reference()
+        del self.object_body_ids["block"]
+        self.object_body_ids["r_gripper_rod"] = self.sim.model.body_name2id("r_gripper_rod")
+
+    # def _get_observation(self):
+    #     """
+    #     Returns an OrderedDict containing observations [(name_string, np.array), ...].
+
+    #     Important keys:
+    #         robot-state: contains robot-centric information.
+    #         object-state: requires @self.use_object_obs to be True.
+    #             contains object-centric information.
+    #         image: requires @self.use_camera_obs to be True.
+    #             contains a rendered frame from the simulation.
+    #         depth: requires @self.use_camera_obs and @self.camera_depth to be True.
+    #             contains a rendered depth map from the simulation
+    #     """
+    #     di = super()._get_observation()
+
+    #     # low-level object information
+    #     if self.use_object_obs:
+
+    #         # locations
+    #         self.object_body_ids["r_gripper_rod"]
+    #         rod_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["r_gripper_rod"]])
+    #         rod_quat = T.convert_quat(
+    #             np.array(self.sim.data.body_xquat[self.object_body_ids["r_gripper_rod"]]), to="xyzw"
+    #         )
+
+    #         # ring position is average of all the surrounding ring geom positions
+    #         ring_pos = np.zeros(3)
+    #         for i in range(self.num_ring_geoms):
+    #             ring_pos += np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("hole_ring_{}".format(i))])
+    #         ring_pos /= self.num_ring_geoms
+    #         ring_quat = T.mat2quat(
+    #             np.array(self.sim.data.geom_xmat[self.sim.model.geom_name2id("hole_ring_0")]).reshape(3, 3)
+    #         )
+
+    #         # include relative pose of ring to rod
+    #         rod_pose = T.pose2mat((rod_pos, rod_quat))
+    #         world_pose_in_rod = T.pose_inv(rod_pose)
+    #         ring_pose = T.pose2mat((ring_pos, ring_quat))
+    #         rel_pose = T.pose_in_A_to_pose_in_B(ring_pose, world_pose_in_rod)
+    #         rel_pos, rel_quat = T.mat2pose(rel_pose)
+    #         di["ring_to_rod_pos"] = rel_pos
+    #         di["ring_to_rod_quat"] = rel_quat
+
+    #         di["object-state"] = np.concatenate([
+    #             di["ring_to_rod_pos"],
+    #             di["ring_to_rod_quat"]
+    #         ])
+
+    #     return di
+
+    def _check_success(self):
+        """
+        Returns True if task has been completed.
+        """
+        block_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["r_gripper_rod"]])
+
+        # ring position is average of all the surrounding ring geom positions
+        ring_pos = np.zeros(3)
+        for i in range(self.num_ring_geoms):
+            ring_pos += np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("hole_ring_{}".format(i))])
+        ring_pos /= self.num_ring_geoms
+
+        # radius should be the ring size, since we want to check that the bar is within the ring
+        radius = self.ring_size[1]
+
+        # check if the center of the block and the hole are close enough
+        return (np.linalg.norm(block_pos - ring_pos) < radius)
+
+
+class SawyerCircusEasyTest(SawyerCircusEasy):
     """Threading task."""
     def _grid_bounds_for_eval_mode(self):
         """
