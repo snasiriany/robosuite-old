@@ -448,7 +448,7 @@ def axisangle2quat(axis, angle):
         return np.array([0., 0., 0., 1.])
 
     # make sure that axis is a unit vector
-    assert math.isclose(np.linalg.norm(axis), 1., rel_tol=1e-3)
+    assert math.isclose(np.linalg.norm(axis), 1., abs_tol=1e-3)
 
     q = np.zeros(4)
     q[3] = np.cos(angle / 2.)
