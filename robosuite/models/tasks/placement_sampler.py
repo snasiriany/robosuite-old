@@ -3,6 +3,7 @@ import itertools
 import numpy as np
 
 from robosuite.utils import RandomizationError
+from robosuite.utils.mjcf_utils import bounds_to_grid
 from copy import deepcopy
 
 
@@ -391,6 +392,18 @@ class SequentialCompositeSampler(ObjectPositionSampler):
         assert object_name not in self.samplers
         self.samplers[object_name] = {'sampler': sampler, 'object_names': [object_name], 'sample_kwargs': kwargs}
 
+    def _sample_on_top(self, object_name, surface_name, sampler):
+        if surface_name == 'table':
+            self.append_sampler(object_name=object_name, sampler=sampler)
+        else:
+            assert surface_name in self.samplers  # surface needs to be placed first
+            self.append_sampler(
+                object_name=object_name,
+                sampler=sampler,
+                reference_object_name=surface_name,
+                sample_on_top=True
+            )
+
     def sample_on_top(
             self,
             object_name,
@@ -402,31 +415,39 @@ class SequentialCompositeSampler(ObjectPositionSampler):
             ensure_object_boundary_in_range=True
     ):
         """Sample placement on top of a surface object"""
-        if surface_name == 'table':
-            self.append_sampler(
-                object_name=object_name,
-                sampler=UniformRandomSampler(
-                    x_range=x_range,
-                    y_range=y_range,
-                    z_rotation=z_rotation,
-                    z_offset=z_offset,
-                    ensure_object_boundary_in_range=ensure_object_boundary_in_range
-                )
-            )
-        else:
-            assert surface_name in self.samplers  # surface needs to be placed first
-            self.append_sampler(
-                object_name=object_name,
-                sampler=UniformRandomSampler(
-                    x_range=x_range,
-                    y_range=y_range,
-                    z_rotation=z_rotation,
-                    z_offset=z_offset,
-                    ensure_object_boundary_in_range=ensure_object_boundary_in_range
-                ),
-                reference_object_name=surface_name,
-                sample_on_top=True
-            )
+        sampler = UniformRandomSampler(
+            x_range=x_range,
+            y_range=y_range,
+            z_rotation=z_rotation,
+            z_offset=z_offset,
+            ensure_object_boundary_in_range=ensure_object_boundary_in_range
+        )
+        return self._sample_on_top(object_name, surface_name, sampler)
+
+    def sample_on_top_square_grid(
+            self,
+            object_name,
+            surface_name='table',
+            x_bound=None,
+            y_bound=None,
+            z_bound=None,
+            z_offset=0.0,
+            x_perturb_range=None,
+            y_perturb_range=None,
+            ensure_object_boundary_in_range=True
+    ):
+        """Sample placement on top of a surface object with a regular grid"""
+        object_grid = bounds_to_grid([x_bound, y_bound, z_bound])
+        sampler = RoundRobinSampler(
+            x_range=object_grid[0],
+            y_range=object_grid[1],
+            ensure_object_boundary_in_range=ensure_object_boundary_in_range,
+            z_rotation=object_grid[2],
+            x_perturb=x_perturb_range,
+            y_perturb=y_perturb_range,
+            z_offset=z_offset
+        )
+        self._sample_on_top(object_name, surface_name, sampler)
 
     def setup(self, mujoco_objects, table_top_offset, table_size):
         self.mujoco_objects = mujoco_objects
