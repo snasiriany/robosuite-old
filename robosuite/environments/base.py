@@ -529,7 +529,7 @@ class MujocoEnv(metaclass=EnvMeta):
             camera_width = self.camera_width
         if camera_height is None:
             camera_height = self.camera_height
-        frame = self.sim.render(camera_width, camera_height, camera_name=camera_name)
+        frame = self.sim.render(width=camera_width, height=camera_height, camera_name=camera_name)
         frame = frame[..., 0] + frame[..., 1] * 2 ** 8 + frame[..., 2] * 2 ** 16
         segid2output = np.full((self.sim.model.ngeom + 1), fill_value=-1,
                                dtype=np.int32)  # Seg id cannot be > ngeom + 1.
