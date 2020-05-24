@@ -2,17 +2,13 @@ from collections import OrderedDict
 import numpy as np
 from copy import deepcopy
 
-from robosuite.utils.mjcf_utils import bounds_to_grid
-from robosuite.utils.transform_utils import convert_quat
 import robosuite.utils.env_utils as EU
 from robosuite.environments.sawyer import SawyerEnv
 
 from robosuite.models.arenas import TableArena
 from robosuite.models.objects import BoxObject, CylinderObject
 from robosuite.models.objects.interactive_objects import MomentaryButtonObject, MaintainedButtonObject
-from robosuite.models.robots import Sawyer
-from robosuite.models.tasks import TableTopTask, UniformRandomSampler, RoundRobinSampler, TableTopMergedTask, \
-    SequentialCompositeSampler
+from robosuite.models.tasks import TableTopMergedTask, SequentialCompositeSampler
 from robosuite.controllers import load_controller_config
 import os
 
@@ -110,6 +106,33 @@ class SawyerPT(SawyerEnv):
             perturb_evals=perturb_evals,
         )
 
+    def _get_observation(self):
+        """
+        Returns an OrderedDict containing observations [(name_string, np.array), ...].
+        """
+        di = super()._get_observation()
+
+        gripper_site_pos = np.array(self.sim.data.site_xpos[self.eef_site_id])
+
+        object_state = []
+        object_only_state = []  # no gripper-object pos
+
+        for obj_name in self.task_object_names:
+            pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(obj_name)])
+            quat = np.array(self.sim.data.body_xquat[self.sim.model.body_name2id(obj_name)])
+            rel_pos = gripper_site_pos - pos
+            object_state.extend([pos, quat, rel_pos])
+            object_only_state.extend([pos, quat])
+
+        object_state = np.concatenate(object_state, axis=0)
+        object_only_state = np.concatenate(object_only_state, axis=0)
+        ostate = [o.flat_state for o in self.interactive_objects.values()]
+
+        di["object-state"] = np.concatenate([object_state] + ostate)
+        di["object-goal-state"] = np.concatenate([object_only_state] + ostate)
+        di["task_id"] = 0.
+        return di
+
     def _load_model(self):
         SawyerEnv._load_model(self)
 
@@ -188,6 +211,10 @@ class SawyerPT(SawyerEnv):
     def _get_default_placement_initializer(self):
         raise NotImplementedError
 
+    @property
+    def task_object_names(self):
+        raise NotImplementedError
+
     def _load_objects(self):
         raise NotImplementedError
 
@@ -242,13 +269,32 @@ class SawyerPTStack(SawyerPT):
 
         mujoco_objects["cube1"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 1))
         mujoco_objects["cube2"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 1))
-        mujoco_objects["plate"] = CylinderObject(size=(0.03, 0.01), rgba=(0, 1, 0, 1))
+        mujoco_objects["plate"] = BoxObject(size=(0.03, 0.03, 0.01), rgba=(0, 1, 0, 1))
         # target visual object
         return mujoco_objects, visual_objects
 
+    @property
+    def task_object_names(self):
+        return ["cube1", "cube2", "plate"]
+
     def _set_state_to_goal(self):
         """Set the environment to a goal state"""
-        pass
+        new_pos, new_quat = EU.sample_stable_placement(
+            self.sim,
+            self.model.mujoco_objects["cube1"],
+            self.sim.model.body_name2id("cube1"),
+            self.model.mujoco_objects["cube2"],
+            self.sim.model.body_name2id("cube2"),
+            max_radius=0.  # center placement
+        )
+        EU.set_body_pose(self.sim, "cube1", pos=new_pos, quat=new_quat)
+        self.sim.forward()
 
     def _check_success(self):
-        return False
+        return EU.is_stable_placement(
+            self.sim,
+            self.model.mujoco_objects["cube1"],
+            self.sim.model.body_name2id("cube1"),
+            self.model.mujoco_objects["cube2"],
+            self.sim.model.body_name2id("cube2"),
+        )

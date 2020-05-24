@@ -734,6 +734,10 @@ class SawyerLiftPositionTarget(SawyerLift):
         )
         self.model.place_objects()
 
+    @property
+    def task_object_names(self):
+        return ["cube"]
+
     def _get_reference(self):
         super()._get_reference()
 
@@ -939,6 +943,10 @@ class SawyerPositionTargetPress(SawyerLiftPositionTarget):
         initializer.append_sampler("button", button_initializer)
         self.placement_initializer = initializer
         return initializer
+
+    @property
+    def task_object_names(self):
+        return ["cube", "button"]
 
     def _load_objects(self):
         mujoco_objects, visual_objects = super()._load_objects()
