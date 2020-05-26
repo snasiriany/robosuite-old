@@ -130,8 +130,12 @@ class SawyerPT(SawyerEnv):
 
         di["object-state"] = np.concatenate([object_state] + ostate)
         di["object-goal-state"] = np.concatenate([object_only_state] + ostate)
-        di["task_id"] = 0.
+        di["task_id"] = np.array([self.task_id])
         return di
+
+    @property
+    def task_id(self):
+        return 0.
 
     def _load_model(self):
         SawyerEnv._load_model(self)
@@ -159,6 +163,9 @@ class SawyerPT(SawyerEnv):
             initializer=self.placement_initializer,
         )
         self.model.place_objects()
+
+    def reward(self, action=None):
+        return 0.
 
     def _reset_internal(self):
         """
@@ -277,14 +284,18 @@ class SawyerPTStack(SawyerPT):
     def task_object_names(self):
         return ["cube1", "cube2", "plate"]
 
+    @property
+    def task_id(self):
+        return 0.
+
     def _set_state_to_goal(self):
         """Set the environment to a goal state"""
         new_pos, new_quat = EU.sample_stable_placement(
             self.sim,
             self.model.mujoco_objects["cube1"],
             self.sim.model.body_name2id("cube1"),
-            self.model.mujoco_objects["cube2"],
-            self.sim.model.body_name2id("cube2"),
+            self.model.mujoco_objects["plate"],
+            self.sim.model.body_name2id("plate"),
             max_radius=0.  # center placement
         )
         EU.set_body_pose(self.sim, "cube1", pos=new_pos, quat=new_quat)
@@ -295,6 +306,82 @@ class SawyerPTStack(SawyerPT):
             self.sim,
             self.model.mujoco_objects["cube1"],
             self.sim.model.body_name2id("cube1"),
+            self.model.mujoco_objects["plate"],
+            self.sim.model.body_name2id("plate"),
+        )
+
+
+class SawyerPTStackCubes(SawyerPTStack):
+    @property
+    def task_id(self):
+        return 1.
+
+    def _set_state_to_goal(self):
+        """Set the environment to a goal state"""
+        new_pos, new_quat = EU.sample_stable_placement(
+            self.sim,
             self.model.mujoco_objects["cube2"],
             self.sim.model.body_name2id("cube2"),
+            self.model.mujoco_objects["cube1"],
+            self.sim.model.body_name2id("cube1"),
+            max_radius=0.  # center placement
         )
+        EU.set_body_pose(self.sim, "cube2", pos=new_pos, quat=new_quat)
+        self.sim.forward()
+
+    def _check_success(self):
+        return EU.is_stable_placement(
+            self.sim,
+            self.model.mujoco_objects["cube2"],
+            self.sim.model.body_name2id("cube2"),
+            self.model.mujoco_objects["cube1"],
+            self.sim.model.body_name2id("cube1"),
+        )
+
+
+class SawyerPTStackAll(SawyerPTStack):
+    @property
+    def task_id(self):
+        return 2.
+
+    def _set_state_to_goal(self):
+        """Set the environment to a goal state"""
+        new_pos, new_quat = EU.sample_stable_placement(
+            self.sim,
+            self.model.mujoco_objects["cube1"],
+            self.sim.model.body_name2id("cube1"),
+            self.model.mujoco_objects["plate"],
+            self.sim.model.body_name2id("plate"),
+            max_radius=0.  # center placement
+        )
+        EU.set_body_pose(self.sim, "cube1", pos=new_pos, quat=new_quat)
+        self.sim.forward()
+
+        new_pos, new_quat = EU.sample_stable_placement(
+            self.sim,
+            self.model.mujoco_objects["cube2"],
+            self.sim.model.body_name2id("cube2"),
+            self.model.mujoco_objects["cube1"],
+            self.sim.model.body_name2id("cube1"),
+            max_radius=0.  # center placement
+        )
+        EU.set_body_pose(self.sim, "cube2", pos=new_pos, quat=new_quat)
+        self.sim.forward()
+
+    def _check_success(self):
+        cube_stack = EU.is_stable_placement(
+            self.sim,
+            self.model.mujoco_objects["cube2"],
+            self.sim.model.body_name2id("cube2"),
+            self.model.mujoco_objects["cube1"],
+            self.sim.model.body_name2id("cube1"),
+        )
+
+        cube_on_plate = EU.is_stable_placement(
+            self.sim,
+            self.model.mujoco_objects["cube1"],
+            self.sim.model.body_name2id("cube1"),
+            self.model.mujoco_objects["plate"],
+            self.sim.model.body_name2id("plate"),
+        )
+        return cube_stack and cube_on_plate

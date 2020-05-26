@@ -107,7 +107,7 @@ def sample_stable_placement(
     return top_new_pos, bot_quat
 
 
-def is_stable_placement(sim, top_object, top_bodyid, surface_object, surface_bodyid, z_tol=0.01, radius_tol=-0.01):
+def is_stable_placement(sim, top_object, top_bodyid, surface_object, surface_bodyid, z_tol=0.01, radius_tol=0.01):
     """
     Check if the top object is placed stably on top of the surface object
     Args:
@@ -126,13 +126,13 @@ def is_stable_placement(sim, top_object, top_bodyid, surface_object, surface_bod
     suf_top = suf_pos + surface_object.get_top_offset()
 
     # check surface distance on z axis
-    if top_bottom[-1] - suf_top[-1] < 0 or top_bottom[-1] - suf_top[-1] > z_tol:
+    if top_bottom[-1] - suf_top[-1] < -z_tol or top_bottom[-1] - suf_top[-1] > z_tol:
         return False
 
     # stable placement if the center of the top object is within the radius of the surface object
     diff = np.linalg.norm(top_pos[:2] - suf_pos[:2])
     suf_radius = surface_object.get_horizontal_radius()
-    if diff - suf_radius >= radius_tol:
+    if diff - suf_radius >= -radius_tol:
         return False
 
     return True
