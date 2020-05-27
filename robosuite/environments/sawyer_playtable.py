@@ -122,7 +122,7 @@ class SawyerPT(SawyerEnv):
             quat = np.array(self.sim.data.body_xquat[self.sim.model.body_name2id(obj_name)])
             rel_pos = gripper_site_pos - pos
             object_state.extend([pos, quat, rel_pos])
-            object_only_state.extend([pos, quat])
+            object_only_state.extend([pos])
 
         object_state = np.concatenate(object_state, axis=0)
         object_only_state = np.concatenate(object_only_state, axis=0)
