@@ -392,6 +392,16 @@ class SequentialCompositeSampler(ObjectPositionSampler):
         assert object_name not in self.samplers
         self.samplers[object_name] = {'sampler': sampler, 'object_names': [object_name], 'sample_kwargs': kwargs}
 
+    def hide(self, object_name):
+        sampler = UniformRandomSampler(
+            x_range=[-10, -20],
+            y_range=[-10, -20],
+            z_rotation=[0, 0],
+            z_offset=10,
+            ensure_object_boundary_in_range=False
+        )
+        self.append_sampler(object_name=object_name, sampler=sampler)
+
     def _sample_on_top(self, object_name, surface_name, sampler):
         if surface_name == 'table':
             self.append_sampler(object_name=object_name, sampler=sampler)

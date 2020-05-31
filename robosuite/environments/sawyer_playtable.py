@@ -133,6 +133,30 @@ class SawyerPT(SawyerEnv):
         di["task_id"] = np.array([self.task_id])
         return di
 
+    def set_task_objects_visual_position(self, object_states):
+        """Set positions of the visual objects"""
+        assert len(object_states) == (len(self.task_object_names) * 3)  # [x, y, z] for each task object
+        object_states = object_states.reshape((-1, 3))
+        curr_pos = []
+        for i, obj_name in enumerate(self.task_object_names):
+            curr_pos.append(np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(obj_name + "_visual")]))
+            EU.set_body_pose(sim=self.sim, body_name=obj_name + "_visual", pos=object_states[i])
+            self.sim.forward()
+        return np.concatenate(curr_pos, axis=0)
+
+    def render_subgoal(self, subgoal_state, camera_name=None, width=None, height=None):
+        """
+        Visualize subgoal in an environment
+        """
+        prev_state = self.set_task_objects_visual_position(subgoal_state)
+        camera_name = camera_name if camera_name is not None else self.camera_name
+        width = width if width is not None else self.camera_width
+        height = height if height is not None else self.camera_height
+        im = self.sim.render(camera_name=camera_name, width=width, height=height)
+        im = im[::-1]  # flip
+        self.set_task_objects_visual_position(prev_state)
+        return im
+
     @property
     def task_id(self):
         return 0.
@@ -251,6 +275,10 @@ class SawyerPTStack(SawyerPT):
             "plate", "table",
             x_range=(-0.1, 0.1), y_range=(-0.1, 0.1), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
         )
+
+        initializer.hide("cube1_visual")
+        initializer.hide("cube2_visual")
+        initializer.hide("plate_visual")
         return initializer
 
     def _get_placement_initializer_for_eval_mode(self):
@@ -277,6 +305,10 @@ class SawyerPTStack(SawyerPT):
         mujoco_objects["cube1"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 1))
         mujoco_objects["cube2"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 1))
         mujoco_objects["plate"] = BoxObject(size=(0.03, 0.03, 0.01), rgba=(0, 1, 0, 1))
+
+        visual_objects["cube1_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 0.3))
+        visual_objects["cube2_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 0.3))
+        visual_objects["plate_visual"] = BoxObject(size=(0.03, 0.03, 0.01), rgba=(0, 1, 0, 0.3))
         # target visual object
         return mujoco_objects, visual_objects
 
