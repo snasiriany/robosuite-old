@@ -1,5 +1,6 @@
 import robosuite.utils.env_utils as EU
 from copy import copy, deepcopy
+import numpy as np
 
 
 def satisfies(state, cond):
@@ -180,13 +181,13 @@ class StatefulObject(object):
                 func()
 
         # TODO: decide if this is needed
-        # for cond, func in self._on_state_funcs:
-        #     if satisfies(self.state, cond):
-        #         func()
-        #
-        # for cond, func in self._on_not_state_funcs:
-        #     if not satisfies(self.state, cond):
-        #         func()
+        for cond, func in self._on_state_funcs:
+            if satisfies(self.state, cond):
+                func()
+
+        for cond, func in self._on_not_state_funcs:
+            if not satisfies(self.state, cond):
+                func()
 
     def step(self):
         """Invokes callback functions that should be invoked every simulation step"""
@@ -213,6 +214,14 @@ class InteractiveObject(EventObject, StatefulObject):
     def reset(self):
         EventObject.reset(self)
         StatefulObject.reset(self)
+
+    @property
+    def flat_state(self):
+        """logical state in flat array"""
+        state = []
+        for sname in self._all_state_names:
+            state.append(float(self.state[sname]))
+        return np.array(state)
 
 
 class BinaryStateObject(InteractiveObject):
@@ -334,5 +343,5 @@ class MomentaryButtonObject(ButtonObject):
 
 class MaintainedButtonObject(ButtonObject):
     """Toggles state at the end of a contact"""
-    def _on_exit_contact(self):
+    def _on_enter_contact(self):
         self.toggle()

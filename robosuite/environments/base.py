@@ -1,6 +1,6 @@
 from collections import OrderedDict
+import time
 import numpy as np
-from scipy import linalg
 
 from mujoco_py import MjSim, MjRenderContextOffscreen
 from mujoco_py import load_model_from_xml
@@ -426,7 +426,7 @@ class MujocoEnv(metaclass=EnvMeta):
         if camera_name is None:
             camera_name = self.camera_name
         P = self.get_camera_transform_matrix(camera_name=camera_name)
-        return linalg.inv(P)
+        return T.matrix_inverse(P)
 
     def from_pixel_to_world(self, u, v, w, camera_name=None):
         """
@@ -529,7 +529,7 @@ class MujocoEnv(metaclass=EnvMeta):
             camera_width = self.camera_width
         if camera_height is None:
             camera_height = self.camera_height
-        frame = self.sim.render(camera_width, camera_height, camera_name=camera_name)
+        frame = self.sim.render(width=camera_width, height=camera_height, camera_name=camera_name)
         frame = frame[..., 0] + frame[..., 1] * 2 ** 8 + frame[..., 2] * 2 ** 16
         segid2output = np.full((self.sim.model.ngeom + 1), fill_value=-1,
                                dtype=np.int32)  # Seg id cannot be > ngeom + 1.
