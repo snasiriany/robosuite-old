@@ -1,6 +1,6 @@
 import numpy as np
 import robosuite as suite
-from robosuite.wrappers import IKWrapper
+# from robosuite.wrappers import IKWrapper
 import robosuite.utils.transform_utils as T
 
 
@@ -34,14 +34,14 @@ if __name__ == "__main__":
 
     # change the controller to osc
     kwargs = {}
-    kwargs["controller"] = "position_orientation"
+    # kwargs["controller"] = "position_orientation"
     # kwargs["control_freq"] = 20
-    kwargs["interpolation"] = None
-    kwargs["use_default_controller_config"] = False
+    # kwargs["interpolation"] = None
+    # kwargs["use_default_controller_config"] = False
     import RobotTeleop
     from os.path import join as pjoin
-    kwargs["controller_config_file"] = pjoin(RobotTeleop.__path__[0],
-                                             "assets/osc/robosuite/sawyer.hjson")
+    # kwargs["controller_config_file"] = pjoin(RobotTeleop.__path__[0],
+    #                                          "assets/osc/robosuite/sawyer.hjson")
     env = suite.make(
         envs[k],
         has_renderer=True,
@@ -55,8 +55,6 @@ if __name__ == "__main__":
     env.viewer.set_camera(camera_id=2) # watch from agent view
 
     # do visualization
-    controller = IKWrapper(env, action_repeat=10)
-    # controller.reset() # will accidentally change camera???
     target_pixel = [ 39.93235, 41, 0.55339] # u, v, w
     u, v, w = target_pixel
     target_coord = env.from_pixel_to_world(u, v, w)

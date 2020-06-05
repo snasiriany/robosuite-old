@@ -50,6 +50,7 @@ class SawyerLift(SawyerEnv):
         camera_segmentation=False,
         eval_mode=False,
         perturb_evals=False,
+        **kwargs
     ):
         """
         Args:
@@ -233,7 +234,7 @@ class SawyerLift(SawyerEnv):
         # initialize objects of interest
         cube = BoxObject(
             size_min=[0.020, 0.020, 0.020],  # [0.015, 0.015, 0.015],
-            size_max=[0.022, 0.022, 0.022],  # [0.018, 0.018, 0.018])
+            size_max=[0.020, 0.020, 0.020],  # [0.018, 0.018, 0.018])
             rgba=[1, 0, 0, 1],
         )
         self.mujoco_objects = OrderedDict([("cube", cube)])
@@ -470,11 +471,14 @@ class SawyerLiftWidePositionInit(SawyerLift):
         """
 
         # (low, high, number of grid points for this dimension)
-        x_bounds = (-0.1, 0.1, 5)
-        y_bounds = (-0.1, 0.1, 5)
+        x_bounds = (-0.1, 0.1, 5)#(-0.05, 0.15, 5)
+        y_bounds = (-0.1, 0.1, 5) # (-0.05, 0.15, 5)
         # extrapolate:
-        # x_bounds = (0.1, 0.2, 4)
-        # y_bounds = (0.1, 0.2, 4)
+        # x_bounds = (-0.2, 0.3, 7)
+        # y_bounds = (-0.2, 0.3, 7)
+        # interpolate:
+        # x_bounds = (-0.03, 0.13, 4)
+        # y_bounds = (-0.03, 0.13, 4)
         z_rot_bounds = (0., 0., 1)
         return x_bounds, y_bounds, z_rot_bounds
 
