@@ -130,7 +130,7 @@ class SawyerPT(SawyerEnv):
 
         di["object-state"] = np.concatenate([object_state] + ostate)
         di["object-goal-state"] = np.concatenate([object_only_state] + ostate)
-        di["task_id"] = np.array([self.task_id])
+        di["task_spec"] = self.task_spec
         return di
 
     def set_task_objects_visual_position(self, object_states):
@@ -144,11 +144,22 @@ class SawyerPT(SawyerEnv):
             self.sim.forward()
         return np.concatenate(curr_pos, axis=0)
 
-    def render_subgoal(self, subgoal_state, camera_name=None, width=None, height=None):
+    def set_task_objects_position(self, object_states):
+        """Set positions of the visual objects"""
+        assert len(object_states) == (len(self.task_object_names) * 3)  # [x, y, z] for each task object
+        object_states = object_states.reshape((-1, 3))
+        curr_pos = []
+        for i, obj_name in enumerate(self.task_object_names):
+            curr_pos.append(np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(obj_name)]))
+            EU.set_body_pose(sim=self.sim, body_name=obj_name, pos=object_states[i])
+            self.sim.forward()
+        return np.concatenate(curr_pos, axis=0)
+
+    def render_goal_visual(self, object_state, camera_name=None, width=None, height=None):
         """
         Visualize subgoal in an environment
         """
-        prev_state = self.set_task_objects_visual_position(subgoal_state)
+        prev_state = self.set_task_objects_visual_position(object_state)
         camera_name = camera_name if camera_name is not None else self.camera_name
         width = width if width is not None else self.camera_width
         height = height if height is not None else self.camera_height
@@ -157,9 +168,26 @@ class SawyerPT(SawyerEnv):
         self.set_task_objects_visual_position(prev_state)
         return im
 
+    def render_goal(self, subgoal_state, camera_name=None, width=None, height=None):
+        """
+        Visualize subgoal in an environment
+        """
+        with EU.world_saved(self.sim):
+            self.set_task_objects_position(subgoal_state)
+            camera_name = camera_name if camera_name is not None else self.camera_name
+            width = width if width is not None else self.camera_width
+            height = height if height is not None else self.camera_height
+            im = self.sim.render(camera_name=camera_name, width=width, height=height)
+            im = im[::-1]  # flip
+        return im
+
     @property
     def task_id(self):
         return 0.
+
+    @property
+    def task_spec(self):
+        return np.array([self.task_id])
 
     def _load_model(self):
         SawyerEnv._load_model(self)
@@ -460,8 +488,9 @@ def check_path_collisions(env, start_pose, end_pose, eef_collision_radius):
 
 class SawyerPTLGP(SawyerPT):
     @property
-    def task_id(self):
-        return 0.
+    def task_spec(self):
+        return np.array([self.task_object_names.index(self.source_name),
+                         self.task_object_names.index(self.target_name)])
 
     def _get_default_placement_initializer(self):
         initializer = SequentialCompositeSampler()
@@ -521,8 +550,16 @@ class SawyerPTLGP(SawyerPT):
 
     def _reset_internal(self):
         ret = super(SawyerPTLGP, self)._reset_internal()
-        self.target_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id("cube2")])
+        self.source_name, self.target_name = np.random.choice(self.task_object_names, size=2, replace=False)
+        self.target_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(self.target_name)])
         return ret
+
+    def set_goal(self, goal_spec):
+        assert 0 <= goal_spec[0] < len(self.task_object_names)
+        assert 0 <= goal_spec[1] < len(self.task_object_names)
+        self.source_name = self.task_object_names[goal_spec[0]]
+        self.target_name = self.task_object_names[goal_spec[1]]
+        self.target_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(self.target_name)])
 
     @property
     def task_object_names(self):
@@ -530,19 +567,20 @@ class SawyerPTLGP(SawyerPT):
 
     def _set_state_to_goal(self):
         """Set the environment to a goal state"""
-        p1 = object_pose(self, "cube1")
-        p2 = object_pose(self, "cube2")
-        obstacles = [tn for tn in check_path_collisions(self, p1, p2, 0.05) if tn != "cube1"]
-        if "cube2" not in obstacles:
-            obstacles.append("cube2")
+        p1 = object_pose(self, self.source_name)
+        p2 = object_pose(self, self.target_name)
+        obstacles = [tn for tn in check_path_collisions(self, p1, p2, 0.05) if tn != self.source_name]
+        if self.target_name not in obstacles:
+            obstacles.append(self.target_name)
 
         for tn in obstacles:
             opose = object_pose(self, tn)
             opose.pos[0] = 0.7
+            EU.set_body_pose(self.sim, tn, pos=opose.pos)
             self.sim.forward()
-        EU.set_body_pose(self.sim, "cube1", self.target_pos)
+        EU.set_body_pose(self.sim, self.source_name, self.target_pos)
         self.sim.forward()
 
     def _check_success(self):
-        cube1_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id("cube1")])
-        return np.linalg.norm(cube1_pos - self.target_pos) < 0.03
+        source_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(self.source_name)])
+        return np.linalg.norm(source_pos - self.target_pos) < 0.03
