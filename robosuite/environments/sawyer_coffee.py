@@ -224,7 +224,8 @@ class SawyerCoffee(SawyerEnv):
         # (low, high, number of grid points for this dimension)
         hole_x_bounds = (0., 0., 1)
         hole_y_bounds = (0., 0., 1)
-        hole_z_rot_bounds = (0., 0., 1)
+        # hole_z_rot_bounds = (0., 0., 1)
+        hole_z_rot_bounds = (-np.pi / 6., -np.pi / 6., 1)
         hole_z_offset = 0.
         ret["coffee_machine"] = [hole_x_bounds, hole_y_bounds, hole_z_rot_bounds, hole_z_offset]
 

@@ -487,14 +487,18 @@ class HingeStackObject(CompositeBodyObject):
 
 class CoffeeMachineObject(CompositeBodyObject):
     def __init__(self):
-        base_size = [0.04, 0.04, 0.08]
-        base = BoxObject(
-            size=base_size,
-            rgba=[0.5, 0.5, 0.5, 1], # grey
+
+        # body of the coffee machine 
+        body_size = [0.04, 0.04, 0.08]
+        body = BoxObject(
+            size=body_size,
+            # rgba=[0.5, 0.5, 0.5, 1], # grey
+            rgba=[0.514, 0.286, 0.204, 1], # brown
             density=1000.,
             joint=[],
         )
 
+        # platform to hold mug
         platform_size = [0.03, 0.03, 0.01]
         platform = BoundingObject(
             size=platform_size,
@@ -506,10 +510,12 @@ class CoffeeMachineObject(CompositeBodyObject):
             density=1000.,
         )
 
+        # holder for keurig pod
         pod_holder_size = [0.02, 0.02, 0.02]
+        pod_holder_hole_size = [0.01, 0.01, 0.01]
         pod_holder = BoundingObject(
             size=pod_holder_size,
-            hole_size=[0.01, 0.01, 0.01],
+            hole_size=pod_holder_hole_size,
             hole_location=[0., 0.],
             hole_rgba=[0., 0., 1., 1], # blue
             joint=[],
@@ -517,30 +523,95 @@ class CoffeeMachineObject(CompositeBodyObject):
             density=1000.,
         )
 
-        pod_holder_holder_size = [base_size[0], (pod_holder_size[1] - 0.01) / 2., 0.02]
+        # used to attach machine body to pod holder
+        pod_holder_holder_size = [body_size[0], (pod_holder_size[1] - pod_holder_hole_size[1]) / 2., 0.02]
         pod_holder_holder = BoxObject(
             size=pod_holder_holder_size,
-            rgba=[0.5, 0.5, 0.5, 1], # grey
+            # rgba=[0.5, 0.5, 0.5, 1], # grey
+            rgba=[0.514, 0.286, 0.204, 1], # brown
             density=1000.,
             joint=[],
         )
 
+        # pod cover (lid)
+        tolerance = 1.03 # tolerance for fit around pod holder
+        thickness = pod_holder_size[0] - pod_holder_hole_size[0] # used as thickness of bar and height of cover
+        pod_cover_total_size = [
+            tolerance * pod_holder_size[0] + thickness, 
+            tolerance * pod_holder_size[1] + thickness / 2., 
+            thickness,
+        ]
 
-        total_size = [0.07, 0.07, 0.08]
+        # create geoms for the top cover and the surrounding parts of the handle
+        geom_names = [
+            'top', 
+            'front', 
+            'left', 
+            'right',
+        ]
+        geom_sizes = [
+            [tolerance * pod_holder_size[0], tolerance * pod_holder_size[1], thickness / 2.],
+            [tolerance * pod_holder_size[0] + thickness, thickness / 2., thickness],
+            [thickness / 2., tolerance * pod_holder_size[1], thickness],
+            [thickness / 2., tolerance * pod_holder_size[1], thickness],
+        ]
+        geom_locations = [
+            [thickness, 0., thickness],
+            [0., 2. * tolerance * pod_holder_size[1], 0.],
+            [2. * (tolerance * pod_holder_size[0] + thickness / 2.), 0., 0.],
+            [0., 0., 0.],
+
+        ]
+
+        hinge_pos = [0., -pod_cover_total_size[1], 0.]
+        hinge_joint = dict(
+            type="hinge",
+            axis="1 0 0",
+            pos=array_to_string(hinge_pos),
+            limited="true",
+            range="0 1.57",
+            frictionloss="1.0", 
+        )
+
+        pod_cover = CompositeBoxObject(
+            total_size=pod_cover_total_size,
+            geom_locations=geom_locations,
+            geom_sizes=geom_sizes,
+            geom_names=geom_names,
+            geom_rgbas=None,
+            geom_frictions=None,
+            # joint=[],
+            joint=[hinge_joint],
+            rgba=[0.5, 0.5, 0.5, 1], # grey
+            density=1000.,
+        )
+
+        total_size = [
+            body_size[0], 
+            body_size[1] + pod_holder_holder_size[1] + pod_cover_total_size[1], 
+            body_size[2] + thickness / 2.,
+        ]
+        objects = [
+            body,
+            platform,
+            pod_holder,
+            pod_holder_holder,
+            pod_cover,
+        ]
         object_locations = [
             [0., 0., 0.],
-            # [2. * base_size[0], base_size[1] - platform_size[1], 0.],
-            [base_size[0] - platform_size[0], 2. * base_size[1], 0.],
-            [base_size[0] - pod_holder_size[0], 2. * (base_size[1] + pod_holder_holder_size[1]), 2. * (base_size[2] - pod_holder_size[2])],
-            [base_size[0] - pod_holder_holder_size[0], 2. * base_size[1], 2. * (base_size[2] - pod_holder_holder_size[2])],
+            [body_size[0] - platform_size[0], 2. * body_size[1], 0.],
+            [body_size[0] - pod_holder_size[0], 2. * (body_size[1] + pod_holder_holder_size[1]), 2. * (body_size[2] - pod_holder_size[2])],
+            [body_size[0] - pod_holder_holder_size[0], 2. * body_size[1], 2. * (body_size[2] - pod_holder_holder_size[2])],
+            [body_size[0] - pod_cover_total_size[0], 2. * (body_size[1] + pod_holder_holder_size[1]), 2. * body_size[2] - pod_cover_total_size[2]],
         ]
 
         super().__init__(
-            objects=[base, platform, pod_holder, pod_holder_holder],
+            objects=objects,
             total_size=total_size,
             object_locations=object_locations,
-            # joint=[],
-            joint=None,
+            joint=[],
+            # joint=None,
         )
 
 
