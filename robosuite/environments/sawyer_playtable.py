@@ -294,9 +294,9 @@ class SawyerPTStack(SawyerPT):
         mujoco_objects = OrderedDict()
         visual_objects = OrderedDict()
 
-        mujoco_objects["cube1"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 1))
-        mujoco_objects["cube2"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 1))
-        mujoco_objects["plate"] = BoxObject(size=(0.03, 0.03, 0.01), rgba=(0, 1, 0, 1))
+        mujoco_objects["cube1"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 1), density=1000, friction=1)
+        mujoco_objects["cube2"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 1), density=1000, friction=1)
+        mujoco_objects["plate"] = BoxObject(size=(0.03, 0.03, 0.01), rgba=(0, 1, 0, 1), density=1000, friction=1)
 
         visual_objects["cube1_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 0.3))
         visual_objects["cube2_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 0.3))
@@ -496,35 +496,35 @@ class SawyerPTLGP(SawyerPT):
         initializer = SequentialCompositeSampler()
         initializer.sample_on_top(
             "cube1", "table",
-            x_range=(-0.07, 0.07), y_range=(-0.1, 0.1), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+            x_range=(-0.07, 0.07), y_range=(-0.12, 0.12), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
         )
         initializer.sample_on_top(
             "cube2", "table",
-            x_range=(-0.07, 0.07), y_range=(-0.1, 0.1), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+            x_range=(-0.07, 0.07), y_range=(-0.12, 0.12), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
         )
         initializer.sample_on_top(
             "cube3", "table",
-            x_range=(-0.07, 0.07), y_range=(-0.1, 0.1), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
+            x_range=(-0.07, 0.07), y_range=(-0.12, 0.12), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
         )
         initializer.sample_on_top(
             "cube4", "table",
-            x_range=(-0.07, 0.07), y_range=(-0.1, 0.1), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+            x_range=(-0.07, 0.07), y_range=(-0.12, 0.12), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
         )
-        # initializer.sample_on_top(
-        #     "cube5", "table",
-        #     x_range=(-0.1, 0.1), y_range=(-0.2, 0.2), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
-        # )
-        # initializer.sample_on_top(
-        #     "cube6", "table",
-        #     x_range=(-0.1, 0.1), y_range=(-0.2, 0.2), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
-        # )
+        initializer.sample_on_top(
+            "cube5", "table",
+            x_range=(-0.07, 0.07), y_range=(-0.12, 0.12), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+        )
+        initializer.sample_on_top(
+            "cube6", "table",
+            x_range=(-0.07, 0.07), y_range=(-0.12, 0.12), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
+        )
 
         initializer.hide("cube1_visual")
         initializer.hide("cube2_visual")
         initializer.hide("cube3_visual")
         initializer.hide("cube4_visual")
-        # initializer.hide("cube5_visual")
-        # initializer.hide("cube6_visual")
+        initializer.hide("cube5_visual")
+        initializer.hide("cube6_visual")
         return initializer
 
     def _load_objects(self):
@@ -532,19 +532,19 @@ class SawyerPTLGP(SawyerPT):
         mujoco_objects = OrderedDict()
         visual_objects = OrderedDict()
 
-        mujoco_objects["cube1"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 1))
-        mujoco_objects["cube2"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 1, 0, 1))
-        mujoco_objects["cube3"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 1))
-        mujoco_objects["cube4"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 1, 1))
-        # mujoco_objects["cube5"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 1, 1, 1))
-        # mujoco_objects["cube6"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 1, 0, 1))
+        mujoco_objects["cube1"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 0, 0, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
+        mujoco_objects["cube2"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 1, 0, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
+        mujoco_objects["cube3"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 0, 1, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
+        mujoco_objects["cube4"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 0, 1, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
+        mujoco_objects["cube5"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 1, 0, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
+        mujoco_objects["cube6"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 1, 1, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
 
-        visual_objects["cube1_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 0.3))
-        visual_objects["cube2_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 1, 0, 0.3))
-        visual_objects["cube3_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 0.3))
-        visual_objects["cube4_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 1, 0.3))
-        # visual_objects["cube5_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 1, 1, 0.3))
-        # visual_objects["cube6_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 1, 0, 0.3))
+        visual_objects["cube1_visual"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 0, 0, 0.3))
+        visual_objects["cube2_visual"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 1, 0, 0.3))
+        visual_objects["cube3_visual"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 0, 1, 0.3))
+        visual_objects["cube4_visual"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 0, 1, 0.3))
+        visual_objects["cube5_visual"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 1, 0, 0.3))
+        visual_objects["cube6_visual"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 1, 1, 0.3))
         # target visual object
         return mujoco_objects, visual_objects
 
@@ -563,7 +563,7 @@ class SawyerPTLGP(SawyerPT):
 
     @property
     def task_object_names(self):
-        return ["cube1", "cube2", "cube3", "cube4"]
+        return ["cube1", "cube2", "cube3", "cube4", "cube5", "cube6"]
 
     def _set_state_to_goal(self):
         """Set the environment to a goal state"""
