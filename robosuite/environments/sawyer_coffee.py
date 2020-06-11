@@ -412,7 +412,7 @@ class SawyerCoffee(SawyerEnv):
         # color the gripper site appropriately based on distance to block
         if self.gripper_visualization:
             # get distance to cube
-            block_site_id = self.sim.model.site_name2id("coffee_machine_0")
+            block_site_id = self.sim.model.site_name2id("coffee_machine")
             dist = np.sum(
                 np.square(
                     self.sim.data.site_xpos[block_site_id]

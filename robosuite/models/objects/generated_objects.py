@@ -424,6 +424,15 @@ class CompositeBodyObject(MujocoGeneratedObject):
                 obj_body.append(new_joint(name="{}_{}".format(body_name, j), **joint))
             main_body.append(obj_body)
 
+        # add site if requested
+        if site:
+            # add a site as well
+            template = self.get_site_attrib_template()
+            template["rgba"] = "1 0 0 0"
+            if name is not None:
+                template["name"] = name
+            main_body.append(ET.Element("site", attrib=template))
+
         return main_body
 
     def get_collision(self, name=None, site=None):
@@ -490,8 +499,35 @@ class CoffeeMachineObject(CompositeBodyObject):
 
         # body of the coffee machine 
         body_size = [0.04, 0.04, 0.08]
-        body = BoxObject(
-            size=body_size,
+        # body = BoxObject(
+        #     size=body_size,
+        #     # rgba=[0.5, 0.5, 0.5, 1], # grey
+        #     rgba=[0.514, 0.286, 0.204, 1], # brown
+        #     density=1000.,
+        #     joint=[],
+        # )
+
+        top_frac_y = 0.75
+        top_frac_z = 0.25
+        geom_names = [
+            'top', 
+            'base'
+        ]
+        geom_sizes = [
+            [body_size[0], body_size[1] * top_frac_y, body_size[2] * top_frac_z],
+            [body_size[0], body_size[1], body_size[2] * (1. - top_frac_z)],
+        ]
+        geom_locations = [
+            [0., 0., 2. * geom_sizes[1][2]],
+            [0., 0., 0.],
+        ]
+        body = CompositeBoxObject(
+            total_size=body_size,
+            geom_locations=geom_locations,
+            geom_sizes=geom_sizes,
+            geom_names=geom_names,
+            geom_rgbas=None,
+            geom_frictions=None,
             # rgba=[0.5, 0.5, 0.5, 1], # grey
             rgba=[0.514, 0.286, 0.204, 1], # brown
             density=1000.,
@@ -523,12 +559,19 @@ class CoffeeMachineObject(CompositeBodyObject):
             density=1000.,
         )
 
+        # size of gap between wall of base body and edge of pod holder
+        pod_holder_gap = (pod_holder_size[1] - pod_holder_hole_size[1])
+
         # used to attach machine body to pod holder
-        pod_holder_holder_size = [body_size[0], (pod_holder_size[1] - pod_holder_hole_size[1]) / 2., 0.02]
+        # pod_holder_holder_size = [body_size[0], (pod_holder_size[1] - pod_holder_hole_size[1]) / 2., 0.02]
+        pod_holder_holder_size = [
+            0.5 * pod_holder_size[0], 
+            (1. - top_frac_y) * body_size[1] + (pod_holder_gap / 2.), 
+            0.5 * pod_holder_size[2],
+        ]
         pod_holder_holder = BoxObject(
             size=pod_holder_holder_size,
-            # rgba=[0.5, 0.5, 0.5, 1], # grey
-            rgba=[0.514, 0.286, 0.204, 1], # brown
+            rgba=[0.5, 0.5, 0.5, 1], # grey
             density=1000.,
             joint=[],
         )
@@ -563,14 +606,15 @@ class CoffeeMachineObject(CompositeBodyObject):
 
         ]
 
-        hinge_pos = [0., -pod_cover_total_size[1], 0.]
+        hinge_pos = [0., -pod_cover_total_size[1], -pod_cover_total_size[2]]
         hinge_joint = dict(
             type="hinge",
             axis="1 0 0",
             pos=array_to_string(hinge_pos),
             limited="true",
             range="0 1.57",
-            frictionloss="1.0", 
+            # frictionloss="1.0", 
+            damping="0.01",
         )
 
         pod_cover = CompositeBoxObject(
@@ -601,9 +645,10 @@ class CoffeeMachineObject(CompositeBodyObject):
         object_locations = [
             [0., 0., 0.],
             [body_size[0] - platform_size[0], 2. * body_size[1], 0.],
-            [body_size[0] - pod_holder_size[0], 2. * (body_size[1] + pod_holder_holder_size[1]), 2. * (body_size[2] - pod_holder_size[2])],
-            [body_size[0] - pod_holder_holder_size[0], 2. * body_size[1], 2. * (body_size[2] - pod_holder_holder_size[2])],
-            [body_size[0] - pod_cover_total_size[0], 2. * (body_size[1] + pod_holder_holder_size[1]), 2. * body_size[2] - pod_cover_total_size[2]],
+            [body_size[0] - pod_holder_size[0], 2. * (body_size[1] + pod_holder_gap / 2.), 2. * (body_size[2] - pod_holder_size[2])],
+            # pod_holder_holder z-location is center of top piece of body
+            [body_size[0] - pod_holder_holder_size[0], 2. * body_size[1] * top_frac_y, 2. * body_size[2] * (1. - top_frac_z) + (body_size[2] * top_frac_z - pod_holder_holder_size[1])],
+            [body_size[0] - pod_cover_total_size[0], 2. * (body_size[1] + pod_holder_gap / 2.), 2. * body_size[2] - pod_cover_total_size[2]],
         ]
 
         super().__init__(
@@ -751,6 +796,15 @@ class CompositeObject(MujocoGeneratedObject):
                     **geom_properties,
                 )
             )
+
+        # add site if requested
+        if site:
+            # add a site as well
+            template = self.get_site_attrib_template()
+            template["rgba"] = "1 0 0 0"
+            if name is not None:
+                template["name"] = name
+            main_body.append(ET.Element("site", attrib=template))
 
         return main_body
 
