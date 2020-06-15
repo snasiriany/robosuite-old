@@ -162,7 +162,7 @@ class SawyerCoffee(SawyerEnv):
             camera_real_depth=camera_real_depth,
             camera_segmentation=camera_segmentation,
             eval_mode=eval_mode,
-            perturb_evals=perturb_evals,
+            perturb_evals=perturb_evals, 
         )
 
     def _get_default_initializer(self):
