@@ -133,15 +133,14 @@ class SawyerPT(SawyerEnv):
         di["task_spec"] = self.task_spec
         return di
 
-    def set_task_objects_visual_position(self, object_states):
+    def set_task_objects_visual_position(self, object_states, postfix="_visual"):
         """Set positions of the visual objects"""
         assert len(object_states) == (len(self.task_object_names) * 3)  # [x, y, z] for each task object
         object_states = object_states.reshape((-1, 3))
         curr_pos = []
         for i, obj_name in enumerate(self.task_object_names):
-            curr_pos.append(np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(obj_name + "_visual")]))
-            EU.set_body_pose(sim=self.sim, body_name=obj_name + "_visual", pos=object_states[i])
-            self.sim.forward()
+            curr_pos.append(np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(obj_name + postfix)]))
+            EU.set_body_pose(sim=self.sim, body_name=obj_name + postfix, pos=object_states[i])
         return np.concatenate(curr_pos, axis=0)
 
     def set_task_objects_position(self, object_states):
@@ -152,28 +151,30 @@ class SawyerPT(SawyerEnv):
         for i, obj_name in enumerate(self.task_object_names):
             curr_pos.append(np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(obj_name)]))
             EU.set_body_pose(sim=self.sim, body_name=obj_name, pos=object_states[i])
-            self.sim.forward()
         return np.concatenate(curr_pos, axis=0)
 
     def render_goal_visual(self, object_state, camera_name=None, width=None, height=None):
         """
         Visualize subgoal in an environment
         """
-        prev_state = self.set_task_objects_visual_position(object_state)
-        camera_name = camera_name if camera_name is not None else self.camera_name
-        width = width if width is not None else self.camera_width
-        height = height if height is not None else self.camera_height
-        im = self.sim.render(camera_name=camera_name, width=width, height=height)
-        im = im[::-1]  # flip
-        self.set_task_objects_visual_position(prev_state)
+        with EU.world_saved(self.sim):
+            for i, state in enumerate(object_state):
+                self.set_task_objects_visual_position(state, postfix="_visual_{}".format(i))
+            self.sim.forward()
+            camera_name = camera_name if camera_name is not None else self.camera_name
+            width = width if width is not None else self.camera_width
+            height = height if height is not None else self.camera_height
+            im = self.sim.render(camera_name=camera_name, width=width, height=height)
+            im = im[::-1]  # flip
         return im
 
-    def render_goal(self, subgoal_state, camera_name=None, width=None, height=None):
+    def render_goal(self, goal_state, camera_name=None, width=None, height=None):
         """
         Visualize subgoal in an environment
         """
         with EU.world_saved(self.sim):
-            self.set_task_objects_position(subgoal_state)
+            self.set_task_objects_position(goal_state)
+            self.sim.forward()
             camera_name = camera_name if camera_name is not None else self.camera_name
             width = width if width is not None else self.camera_width
             height = height if height is not None else self.camera_height
@@ -519,12 +520,13 @@ class SawyerPTLGP(SawyerPT):
             x_range=(-0.07, 0.07), y_range=(-0.12, 0.12), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
         )
 
-        initializer.hide("cube1_visual")
-        initializer.hide("cube2_visual")
-        initializer.hide("cube3_visual")
-        initializer.hide("cube4_visual")
-        initializer.hide("cube5_visual")
-        initializer.hide("cube6_visual")
+        for i in range(5):
+            initializer.hide("cube1_visual_{}".format(i))
+            initializer.hide("cube2_visual_{}".format(i))
+            initializer.hide("cube3_visual_{}".format(i))
+            initializer.hide("cube4_visual_{}".format(i))
+            initializer.hide("cube5_visual_{}".format(i))
+            initializer.hide("cube6_visual_{}".format(i))
         return initializer
 
     def _load_objects(self):
@@ -539,12 +541,13 @@ class SawyerPTLGP(SawyerPT):
         mujoco_objects["cube5"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 1, 0, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
         mujoco_objects["cube6"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 1, 1, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
 
-        visual_objects["cube1_visual"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 0, 0, 0.3))
-        visual_objects["cube2_visual"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 1, 0, 0.3))
-        visual_objects["cube3_visual"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 0, 1, 0.3))
-        visual_objects["cube4_visual"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 0, 1, 0.3))
-        visual_objects["cube5_visual"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 1, 0, 0.3))
-        visual_objects["cube6_visual"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 1, 1, 0.3))
+        for i in range(5):
+            visual_objects["cube1_visual_{}".format(i)] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 0, 0, 0.3))
+            visual_objects["cube2_visual_{}".format(i)] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 1, 0, 0.3))
+            visual_objects["cube3_visual_{}".format(i)] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 0, 1, 0.3))
+            visual_objects["cube4_visual_{}".format(i)] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 0, 1, 0.3))
+            visual_objects["cube5_visual_{}".format(i)] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 1, 0, 0.3))
+            visual_objects["cube6_visual_{}".format(i)] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 1, 1, 0.3))
         # target visual object
         return mujoco_objects, visual_objects
 
