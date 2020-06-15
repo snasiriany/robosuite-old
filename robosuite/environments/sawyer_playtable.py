@@ -130,36 +130,65 @@ class SawyerPT(SawyerEnv):
 
         di["object-state"] = np.concatenate([object_state] + ostate)
         di["object-goal-state"] = np.concatenate([object_only_state] + ostate)
-        di["task_id"] = np.array([self.task_id])
+        di["task_spec"] = self.task_spec
         return di
 
-    def set_task_objects_visual_position(self, object_states):
+    def set_task_objects_visual_position(self, object_states, postfix="_visual"):
         """Set positions of the visual objects"""
         assert len(object_states) == (len(self.task_object_names) * 3)  # [x, y, z] for each task object
         object_states = object_states.reshape((-1, 3))
         curr_pos = []
         for i, obj_name in enumerate(self.task_object_names):
-            curr_pos.append(np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(obj_name + "_visual")]))
-            EU.set_body_pose(sim=self.sim, body_name=obj_name + "_visual", pos=object_states[i])
-            self.sim.forward()
+            curr_pos.append(np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(obj_name + postfix)]))
+            EU.set_body_pose(sim=self.sim, body_name=obj_name + postfix, pos=object_states[i])
         return np.concatenate(curr_pos, axis=0)
 
-    def render_subgoal(self, subgoal_state, camera_name=None, width=None, height=None):
+    def set_task_objects_position(self, object_states):
+        """Set positions of the visual objects"""
+        assert len(object_states) == (len(self.task_object_names) * 3)  # [x, y, z] for each task object
+        object_states = object_states.reshape((-1, 3))
+        curr_pos = []
+        for i, obj_name in enumerate(self.task_object_names):
+            curr_pos.append(np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(obj_name)]))
+            EU.set_body_pose(sim=self.sim, body_name=obj_name, pos=object_states[i])
+        return np.concatenate(curr_pos, axis=0)
+
+    def render_goal_visual(self, object_state, camera_name=None, width=None, height=None):
         """
         Visualize subgoal in an environment
         """
-        prev_state = self.set_task_objects_visual_position(subgoal_state)
-        camera_name = camera_name if camera_name is not None else self.camera_name
-        width = width if width is not None else self.camera_width
-        height = height if height is not None else self.camera_height
-        im = self.sim.render(camera_name=camera_name, width=width, height=height)
-        im = im[::-1]  # flip
-        self.set_task_objects_visual_position(prev_state)
+        with EU.world_saved(self.sim):
+            for i, state in enumerate(object_state):
+                self.set_task_objects_visual_position(state, postfix="_visual_{}".format(i))
+            self.sim.forward()
+            camera_name = camera_name if camera_name is not None else self.camera_name
+            width = width if width is not None else self.camera_width
+            height = height if height is not None else self.camera_height
+            im = self.sim.render(camera_name=camera_name, width=width, height=height)
+            im = im[::-1]  # flip
+        return im
+
+    def render_goal(self, goal_state, camera_name=None, width=None, height=None):
+        """
+        Visualize subgoal in an environment
+        """
+        with EU.world_saved(self.sim):
+            self.set_task_objects_position(goal_state)
+            self.sim.forward()
+            camera_name = camera_name if camera_name is not None else self.camera_name
+            width = width if width is not None else self.camera_width
+            height = height if height is not None else self.camera_height
+            im = self.sim.render(camera_name=camera_name, width=width, height=height)
+            im = im[::-1]  # flip
         return im
 
     @property
     def task_id(self):
         return 0.
+
+    @property
+    def task_spec(self):
+        return np.array([self.task_id])
 
     def _load_model(self):
         SawyerEnv._load_model(self)
@@ -261,6 +290,25 @@ class SawyerPT(SawyerEnv):
 
 
 class SawyerPTStack(SawyerPT):
+    def _load_objects(self):
+        # setup objects and initializers
+        mujoco_objects = OrderedDict()
+        visual_objects = OrderedDict()
+
+        mujoco_objects["cube1"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 1), density=1000, friction=1)
+        mujoco_objects["cube2"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 1), density=1000, friction=1)
+        mujoco_objects["plate"] = BoxObject(size=(0.03, 0.03, 0.01), rgba=(0, 1, 0, 1), density=1000, friction=1)
+
+        visual_objects["cube1_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 0.3))
+        visual_objects["cube2_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 0.3))
+        visual_objects["plate_visual"] = BoxObject(size=(0.03, 0.03, 0.01), rgba=(0, 1, 0, 0.3))
+        # target visual object
+        return mujoco_objects, visual_objects
+
+    @property
+    def task_object_names(self):
+        return ["cube1", "cube2", "plate"]
+
     def _get_default_placement_initializer(self):
         initializer = SequentialCompositeSampler()
         initializer.sample_on_top(
@@ -280,41 +328,6 @@ class SawyerPTStack(SawyerPT):
         initializer.hide("cube2_visual")
         initializer.hide("plate_visual")
         return initializer
-
-    def _get_placement_initializer_for_eval_mode(self):
-        initializer = SequentialCompositeSampler()
-        initializer.sample_on_top_square_grid(
-            "cube1", "table",
-            x_bound=(-0.1, 0.1, 5), y_bound=(-0.1, 0.1, 5), z_bound=(0.0, 0.0, 1), ensure_object_boundary_in_range=False
-        )
-        initializer.sample_on_top_square_grid(
-            "cube2", "table",
-            x_bound=(-0.1, 0.1, 5), y_bound=(-0.1, 0.1, 5), z_bound=(0.0, 0.0, 1), ensure_object_boundary_in_range=False
-        )
-        initializer.sample_on_top_square_grid(
-            "plate", "table",
-            x_bound=(-0.1, 0.1, 5), y_bound=(-0.1, 0.1, 5), z_bound=(0.0, 0.0, 1), ensure_object_boundary_in_range=False
-        )
-        return initializer
-
-    def _load_objects(self):
-        # setup objects and initializers
-        mujoco_objects = OrderedDict()
-        visual_objects = OrderedDict()
-
-        mujoco_objects["cube1"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 1))
-        mujoco_objects["cube2"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 1))
-        mujoco_objects["plate"] = BoxObject(size=(0.03, 0.03, 0.01), rgba=(0, 1, 0, 1))
-
-        visual_objects["cube1_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 0.3))
-        visual_objects["cube2_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 0.3))
-        visual_objects["plate_visual"] = BoxObject(size=(0.03, 0.03, 0.01), rgba=(0, 1, 0, 0.3))
-        # target visual object
-        return mujoco_objects, visual_objects
-
-    @property
-    def task_object_names(self):
-        return ["cube1", "cube2", "plate"]
 
     @property
     def task_id(self):
@@ -417,3 +430,160 @@ class SawyerPTStackAll(SawyerPTStack):
             self.sim.model.body_name2id("plate"),
         )
         return cube_stack and cube_on_plate
+
+
+class Pose(object):
+    def __init__(self, pos=None, rot=None):
+        self.pos = np.array(pos) if pos is not None else None
+        self.rot = np.array(rot) if rot is not None else None
+
+    @property
+    def array(self):
+        return np.concatenate((self.pos, self.rot), axis=0)
+
+
+def object_pose(env, name):
+    init_pos = np.array(env.sim.data.geom_xpos[env.sim.model.geom_name2id(name)])
+    init_quat = np.array(env.sim.data.geom_xpos[env.sim.model.geom_name2id(name)])
+    return Pose(init_pos, init_quat)
+
+
+def point_to_line_segment(p, q1, q2):
+    pq1 = p - q1
+    pq2 = p - q2
+    q2q1 = q2 - q1
+    q1q2 = q1 - q2
+
+    def angle(x, y):
+        return np.arccos(np.dot(x, y) / (np.linalg.norm(x) * np.linalg.norm(y)))
+
+    if angle(pq1, q2q1) > (0.5 * np.pi):
+        return np.linalg.norm(pq1)
+    if angle(pq2, q1q2) > (0.5 * np.pi):
+        return np.linalg.norm(pq2)
+
+    return np.sin(angle(pq1, q2q1)) * np.linalg.norm(pq1)
+
+
+def check_path_collisions(env, start_pose, end_pose, eef_collision_radius):
+    """
+    Find all task objects that would collide with a cartesian path
+    Args:
+        start_pose (Pose): (pos, ori)
+        end_pose (Pose): (pos, ori)
+        eef_collision_radius (float): radius for checking collisions in 3D
+
+    Returns:
+        set of body names that will collide w/ the eef
+
+    """
+    start_pos = start_pose.pos
+    end_pos = end_pose.pos
+    collides = []
+    for tn in env.task_object_names:
+        op = object_pose(env, tn)
+        if point_to_line_segment(op.pos, start_pos, end_pos) < eef_collision_radius:
+            collides.append(tn)
+    return collides
+
+
+class SawyerPTLGP(SawyerPT):
+    @property
+    def task_spec(self):
+        return np.array([self.task_object_names.index(self.source_name),
+                         self.task_object_names.index(self.target_name)])
+
+    def _get_default_placement_initializer(self):
+        initializer = SequentialCompositeSampler()
+        initializer.sample_on_top(
+            "cube1", "table",
+            x_range=(-0.07, 0.07), y_range=(-0.12, 0.12), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+        )
+        initializer.sample_on_top(
+            "cube2", "table",
+            x_range=(-0.07, 0.07), y_range=(-0.12, 0.12), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+        )
+        initializer.sample_on_top(
+            "cube3", "table",
+            x_range=(-0.07, 0.07), y_range=(-0.12, 0.12), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
+        )
+        initializer.sample_on_top(
+            "cube4", "table",
+            x_range=(-0.07, 0.07), y_range=(-0.12, 0.12), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+        )
+        initializer.sample_on_top(
+            "cube5", "table",
+            x_range=(-0.07, 0.07), y_range=(-0.12, 0.12), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+        )
+        initializer.sample_on_top(
+            "cube6", "table",
+            x_range=(-0.07, 0.07), y_range=(-0.12, 0.12), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
+        )
+
+        for i in range(5):
+            initializer.hide("cube1_visual_{}".format(i))
+            initializer.hide("cube2_visual_{}".format(i))
+            initializer.hide("cube3_visual_{}".format(i))
+            initializer.hide("cube4_visual_{}".format(i))
+            initializer.hide("cube5_visual_{}".format(i))
+            initializer.hide("cube6_visual_{}".format(i))
+        return initializer
+
+    def _load_objects(self):
+        # setup objects and initializers
+        mujoco_objects = OrderedDict()
+        visual_objects = OrderedDict()
+
+        mujoco_objects["cube1"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 0, 0, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
+        mujoco_objects["cube2"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 1, 0, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
+        mujoco_objects["cube3"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 0, 1, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
+        mujoco_objects["cube4"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 0, 1, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
+        mujoco_objects["cube5"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 1, 0, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
+        mujoco_objects["cube6"] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 1, 1, 1), density=1000, friction=1, horizontal_radius_offset=0.01)
+
+        for i in range(5):
+            visual_objects["cube1_visual_{}".format(i)] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 0, 0, 0.3))
+            visual_objects["cube2_visual_{}".format(i)] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 1, 0, 0.3))
+            visual_objects["cube3_visual_{}".format(i)] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 0, 1, 0.3))
+            visual_objects["cube4_visual_{}".format(i)] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 0, 1, 0.3))
+            visual_objects["cube5_visual_{}".format(i)] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(1, 1, 0, 0.3))
+            visual_objects["cube6_visual_{}".format(i)] = BoxObject(size=(0.015, 0.015, 0.015), rgba=(0, 1, 1, 0.3))
+        # target visual object
+        return mujoco_objects, visual_objects
+
+    def _reset_internal(self):
+        ret = super(SawyerPTLGP, self)._reset_internal()
+        self.source_name, self.target_name = np.random.choice(self.task_object_names, size=2, replace=False)
+        self.target_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(self.target_name)])
+        return ret
+
+    def set_goal(self, goal_spec):
+        assert 0 <= goal_spec[0] < len(self.task_object_names)
+        assert 0 <= goal_spec[1] < len(self.task_object_names)
+        self.source_name = self.task_object_names[goal_spec[0]]
+        self.target_name = self.task_object_names[goal_spec[1]]
+        self.target_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(self.target_name)])
+
+    @property
+    def task_object_names(self):
+        return ["cube1", "cube2", "cube3", "cube4", "cube5", "cube6"]
+
+    def _set_state_to_goal(self):
+        """Set the environment to a goal state"""
+        p1 = object_pose(self, self.source_name)
+        p2 = object_pose(self, self.target_name)
+        obstacles = [tn for tn in check_path_collisions(self, p1, p2, 0.05) if tn != self.source_name]
+        if self.target_name not in obstacles:
+            obstacles.append(self.target_name)
+
+        for tn in obstacles:
+            opose = object_pose(self, tn)
+            opose.pos[0] = 0.7
+            EU.set_body_pose(self.sim, tn, pos=opose.pos)
+            self.sim.forward()
+        EU.set_body_pose(self.sim, self.source_name, self.target_pos)
+        self.sim.forward()
+
+    def _check_success(self):
+        source_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(self.source_name)])
+        return np.linalg.norm(source_pos - self.target_pos) < 0.03

@@ -1213,6 +1213,7 @@ class BoxObject(MujocoGeneratedObject):
         joint=None,
         solref=None,
         solimp=None,
+        horizontal_radius_offset=0.,
     ):
         size = _get_size(size,
                          size_max,
@@ -1225,6 +1226,7 @@ class BoxObject(MujocoGeneratedObject):
         friction_range = _get_randomized_range(friction,
                                                friction_range,
                                                DEFAULT_FRICTION_RANGE)
+        self.horizontal_radius_offset = horizontal_radius_offset
         super().__init__(
             size=size,
             rgba=rgba,
@@ -1246,7 +1248,7 @@ class BoxObject(MujocoGeneratedObject):
         return np.array([0, 0, self.size[2]])
 
     def get_horizontal_radius(self):
-        return np.linalg.norm(self.size[0:2], 2)
+        return np.linalg.norm(self.size[0:2], 2) + self.horizontal_radius_offset
 
     def get_bounding_box_size(self):
         return np.array([self.size[0], self.size[1], self.size[2]])
