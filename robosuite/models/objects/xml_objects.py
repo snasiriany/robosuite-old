@@ -3,6 +3,13 @@ from robosuite.models.objects import MujocoXMLObject
 from robosuite.utils.mjcf_utils import xml_path_completion, array_to_string
 
 
+class CoffeeMachineXMLObject(MujocoXMLObject):
+    """
+    Coffee machine imported from external meshes.
+    """
+    def __init__(self, joint=None):
+        super().__init__(xml_path_completion("objects/coffee.xml"), joint=joint)
+
 class WoodenPieceObject(MujocoXMLObject):
     """
     Wooden piece object used in some tasks.

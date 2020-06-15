@@ -8,7 +8,7 @@ import robosuite.utils.env_utils as EU
 from robosuite.environments.sawyer import SawyerEnv
 
 from robosuite.models.arenas import TableArena
-from robosuite.models.objects import BoxObject, CompositeBodyObject, HingeStackObject, CoffeeMachineObject
+from robosuite.models.objects import BoxObject, CompositeBodyObject, HingeStackObject, CoffeeMachineObject, CoffeeMachineXMLObject
 from robosuite.models.robots import Sawyer
 from robosuite.models.tasks import TableTopMergedTask, UniformRandomSampler, SequentialCompositeSampler, RoundRobinSampler
 from robosuite.controllers import load_controller_config
@@ -250,7 +250,8 @@ class SawyerCoffee(SawyerEnv):
 
         # initialize objects of interest
         # self.coffee_machine = HingeStackObject()
-        self.coffee_machine = CoffeeMachineObject()
+        # self.coffee_machine = CoffeeMachineObject()
+        self.coffee_machine = CoffeeMachineXMLObject()
 
         self.mujoco_objects = OrderedDict([
             ("coffee_machine", self.coffee_machine), 
