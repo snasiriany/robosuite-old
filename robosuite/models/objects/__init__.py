@@ -20,6 +20,9 @@ from .xml_objects import (
 )
 
 from .generated_objects import (
+    CompositeBodyObject,
+    HingeStackObject,
+    CoffeeMachineObject,
     CompositeObject,
     CompositeBoxObject,
     BoundingObject,
