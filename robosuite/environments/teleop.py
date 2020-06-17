@@ -1,3 +1,4 @@
+
 """
 Subclasses for robosuite environments to define tasks that are compatible with teleoperation.
 This is a convenient place to model different tasks we'd like to collect data on.
@@ -19,6 +20,7 @@ from robosuite.environments.sawyer_clutter import *
 from robosuite.environments.sawyer_door import *
 from robosuite.environments.sawyer_pole import *
 from robosuite.environments.sawyer_coffee import *
+from robosuite.environments.sawyer_playtable import *
 
 DEFAULT_JPOS = np.array([0.00, -1.18, 0.00, 2.18, 0.00, 0.57, 1.5708])
 PUSH_JPOS = np.array([-0.40451, -0.65964, 0.09147, 2.20431, -1.19175, 0.07469, 2.59081])
@@ -86,6 +88,14 @@ class SawyerPositionTargetRandomTeleop(SawyerPositionTargetRandom):
         self.init_qpos = DEFAULT_JPOS
 
 class SawyerPositionPressTeleop(SawyerPositionPress):
+    def _load_model(self):
+        super()._load_model()
+        # override initial joint position placement
+        self.init_qpos = DEFAULT_JPOS
+
+
+### PT ###
+class SawyerPTLGPTeleop(SawyerPTLGP):
     def _load_model(self):
         super()._load_model()
         # override initial joint position placement
