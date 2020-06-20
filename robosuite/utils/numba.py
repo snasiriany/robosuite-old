@@ -3,7 +3,7 @@ Numba utils.
 """
 import numba
 
-ENABLE_NUMBA = False
+ENABLE_NUMBA = True
 
 def jit_decorator(func):
     if ENABLE_NUMBA:
