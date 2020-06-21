@@ -7,12 +7,7 @@ for your camera in the mujoco XML file.
 
 """
 TODOs:
-- Snap to bbox center
-- Snap to bbox side (closest)
-- Snap to object top
-- Snap to object side
-- Snap to table
-- Track all bodies + geoms and whiten all
+- Document keys
 - Fast or slow pos / rot toggle?
 """
 
@@ -605,6 +600,28 @@ def snap_object_to_center(env, object_id, other_object_id):
     env.sim.data.qpos[joint_id: joint_id + 3] = obj_pos
     env.sim.forward()
 
+def snap_object_to_table(env, object_id):
+    """
+    Helper function to snap an object to the table surface.
+    """
+
+    # use object id to get name, object, and position
+    obj_name = env.object_id_to_name[object_id]
+    obj = env.mujoco_objects[obj_name]
+    body_id = env.object_body_ids[obj_name]
+    obj_pos = np.array(env.sim.data.body_xpos[body_id])
+
+    # change object z-position to lie directly on top of table
+    table_body_id = env.sim.model.body_name2id("table")
+    table_pos = np.array(env.sim.data.body_xpos[table_body_id])
+    offset = (env.table_full_size[2] / 2.) - obj.get_bottom_offset()[2]
+    obj_pos[2] = table_pos[2] + offset
+
+    # set new object pos
+    joint_id = env.object_qpos_addrs[obj_name][0]
+    env.sim.data.qpos[joint_id: joint_id + 3] = obj_pos
+    env.sim.forward()
+
 def snap_object_to_boundary(env, object_id, axis):
     """
     Depending on axis input, this function will move to align the boundary of the object
@@ -783,6 +800,15 @@ class KeyboardHandler:
                 else:
                     snap_object_to_center(env=self.env, object_id=self.object_id, other_object_id=0)
 
+
+            # snap object to tabletop
+            if key == glfw.KEY_H:
+                if self.camera_mode:
+                    pass
+                else:
+                    snap_object_to_table(env=self.env, object_id=self.object_id)
+
+
             # snap object to closest object boundary
             if key == glfw.KEY_T:
                 if self.camera_mode:
@@ -952,11 +978,32 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    print("\nWelcome to the object tuning script! You will be able to tune a camera view")
-    print("by moving it around using your keyboard. The controls are printed below.")
+    print("\nWelcome to the object creation script! You will be able to make a composite object")
+    print("by moving individual pieces around using your keyboard. The controls are printed below.")
+    print("You can control the objects, or move cameras around to get a better view.")
+    print("The first object is treated as the workspace for crafting the composite object.")
 
     print("")
+    print("General Controls\n")
+    print_command("q", "toggle camera mode on/off")
+    print_command("SPACE", "save current workspace and composite object to hdf5 and xml")
+
+    print("Object Controls\n")
     print_command("Keys", "Command")
+    print_command("TAB", "switch active object")
+    print_command("w-s", "move object along x-axis")
+    print_command("a-d", "move object along y-axis")
+    print_command("r-f", "move object along z-axis")
+    print_command("arrow keys", "rotate object about x and y axis")
+    print_command(".-/", "rotate object about z-axis")
+    print_command("t-y-u", "snap object to closest object boundary in x, y, and z")
+    print_command("e", "snap object rotation to closest axis-aligned rotation")
+    print_command("g", "snap object to center of reference workspace")
+    print_command("h", "snap object to tabletop surface")
+
+    print("Camera Controls\n")
+    print_command("Keys", "Command")
+    print_command("TAB", "switch active camera")
     print_command("w-s", "zoom the camera in/out")
     print_command("a-d", "pan the camera left/right")
     print_command("r-f", "pan the camera up/down")
