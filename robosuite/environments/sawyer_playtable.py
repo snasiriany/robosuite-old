@@ -243,9 +243,9 @@ class SawyerPT(SawyerEnv):
             o.step(sim_step=self.timestep)
         return super().step(action)
 
-    def set_goal(self, _):
-        # do nothing
-        pass
+    def set_goal(self, goal_dict):
+        # override the current goal dict
+        self._goal_dict = deepcopy(goal_dict)
 
     def _set_goal_rendering(self, _):
         pass
@@ -557,12 +557,18 @@ class SawyerPTLGP(SawyerPT):
         self.target_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(self.target_name)])
         return ret
 
-    def set_goal(self, goal_spec):
-        assert 0 <= goal_spec[0] < len(self.task_object_names)
-        assert 0 <= goal_spec[1] < len(self.task_object_names)
-        self.source_name = self.task_object_names[goal_spec[0]]
-        self.target_name = self.task_object_names[goal_spec[1]]
-        self.target_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(self.target_name)])
+    def set_goal(self, task_specs, goal_dict=None):
+        task_specs = task_specs.astype(np.int64)
+        assert 0 <= task_specs[0] < len(self.task_object_names)
+        assert 0 <= task_specs[1] < len(self.task_object_names)
+        self.source_name = self.task_object_names[task_specs[0]]
+        self.target_name = self.task_object_names[task_specs[1]]
+        if goal_dict is not None:
+            # set target to the position specified in goal_dict
+            assert goal_dict["object_goal"].shape[0] == len(self.task_object_names) * 3
+            self.target_pos = goal_dict["object_goal"].reshape(len(self.task_object_names), 3)[task_specs[0]].copy()
+        else:
+            self.target_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(self.target_name)])
 
     @property
     def task_object_names(self):
