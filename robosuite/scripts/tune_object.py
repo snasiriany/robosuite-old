@@ -7,6 +7,12 @@ for your camera in the mujoco XML file.
 
 """
 TODOs:
+- Snap to bbox center
+- Snap to bbox side (closest)
+- Snap to object top
+- Snap to object side
+- Snap to table
+- Track all bodies + geoms and whiten all
 - Fast or slow pos / rot toggle?
 """
 
@@ -581,6 +587,80 @@ def rotate_object(env, direction, angle, object_id):
     env.sim.data.qpos[joint_id + 3: joint_id + 7] = T.convert_quat(T.mat2quat(obj_rot), to='wxyz')
     env.sim.forward()
 
+def snap_object_to_center(env, object_id, other_object_id):
+    """
+    Helper function to snap object to the center of another object.
+    """
+    obj_name = env.object_id_to_name[object_id]
+    other_obj_name = env.object_id_to_name[other_object_id]
+
+    # current object pos
+    body_id = env.object_body_ids[obj_name]
+    obj_pos = np.array(env.sim.data.body_xpos[body_id])
+
+    # set new object pos to center of other object
+    other_body_id = env.object_body_ids[other_obj_name]
+    obj_pos = np.array(env.sim.data.body_xpos[other_body_id])
+    joint_id = env.object_qpos_addrs[obj_name][0]
+    env.sim.data.qpos[joint_id: joint_id + 3] = obj_pos
+    env.sim.forward()
+
+def snap_object_to_boundary(env, object_id, axis):
+    """
+    Depending on axis input, this function will move to align the boundary of the object
+    with the boundary of the other object in that axis. The other object is determined
+    to be the one closest to the current object, along the relevant axis.
+    """
+    # use object id to get name, object, and position
+    obj_name = env.object_id_to_name[object_id]
+    obj = env.mujoco_objects[obj_name]
+    body_id = env.object_body_ids[obj_name]
+    obj_pos = np.array(env.sim.data.body_xpos[body_id])
+
+    best_dist = np.inf
+    best_obj_pos = None
+    for other_obj_name in env.mujoco_objects:
+        if other_obj_name == obj_name:
+            continue
+        other_obj = env.mujoco_objects[other_obj_name]
+        other_body_id = env.object_body_ids[other_obj_name]
+        other_obj_pos = np.array(env.sim.data.body_xpos[other_body_id])
+        new_obj_pos = np.array(obj_pos)
+
+        if axis == 'x':
+            # move object to left / right of x-boundary depending on distance
+            offset = obj.get_horizontal_radius() + other_obj.get_horizontal_radius()
+            if np.abs(obj_pos[0] - other_obj_pos[0] - offset) < np.abs(obj_pos[0] - other_obj_pos[0] + offset):
+                dist = np.abs(obj_pos[0] - other_obj_pos[0] - offset)
+                new_obj_pos[0] = other_obj_pos[0] + offset
+            else:
+                dist = np.abs(obj_pos[0] - other_obj_pos[0] + offset)
+                new_obj_pos[0] = other_obj_pos[0] - offset
+        elif axis == 'y':
+            # move object to left / right of y-boundary depending on distance
+            offset = obj.get_horizontal_radius() + other_obj.get_horizontal_radius()
+            if np.abs(obj_pos[1] - other_obj_pos[1] - offset) < np.abs(obj_pos[1] - other_obj_pos[1] + offset):
+                dist = np.abs(obj_pos[1] - other_obj_pos[1] - offset)
+                new_obj_pos[1] = other_obj_pos[1] + offset
+            else:
+                dist = np.abs(obj_pos[1] - other_obj_pos[1] + offset)
+                new_obj_pos[1] = other_obj_pos[1] - offset
+        elif axis == 'z':
+            offset = other_obj.get_top_offset()[2] - obj.get_bottom_offset()[2]
+            dist = np.abs(obj_pos[2] - other_obj_pos[2] - offset)
+            new_obj_pos[2] = other_obj_pos[2] + offset
+        else:
+            raise Exception("Invalid axis.")
+
+        if dist < best_dist:
+            best_dist = dist
+            best_obj_pos = new_obj_pos
+
+    # set new object pos
+    joint_id = env.object_qpos_addrs[obj_name][0]
+    env.sim.data.qpos[joint_id: joint_id + 3] = best_obj_pos
+    env.sim.forward()
+
 def snap_object_to_grid(env, object_id, rotation_set):
     """
     Helper function to snap object to rotation grid.
@@ -668,6 +748,7 @@ class KeyboardHandler:
             if key == glfw.KEY_Q:
                 self.camera_mode = not self.camera_mode
 
+
             # switch camera / object
             if key == glfw.KEY_TAB:
                 if self.camera_mode:
@@ -675,6 +756,7 @@ class KeyboardHandler:
                     self.env.viewer.set_camera(camera_id=self.camera_id)
                 else:
                     self.object_id = (self.object_id + 1) % self.num_objects
+
 
             # save model
             if key == glfw.KEY_SPACE:
@@ -685,12 +767,41 @@ class KeyboardHandler:
                     env.save_ckpt()
                     env.save_object_xml()
 
-            # snap current rotation to gri
+
+            # snap current rotation to grid
             if key == glfw.KEY_E:
                 if self.camera_mode:
                     pass
                 else:
                     snap_object_to_grid(env=self.env, object_id=self.object_id, rotation_set=self._rotation_grid)
+
+
+            # snap object to reference object center
+            if key == glfw.KEY_G:
+                if self.camera_mode:
+                    pass
+                else:
+                    snap_object_to_center(env=self.env, object_id=self.object_id, other_object_id=0)
+
+            # snap object to closest object boundary
+            if key == glfw.KEY_T:
+                if self.camera_mode:
+                    pass
+                else:
+                    snap_object_to_boundary(env=self.env, object_id=self.object_id, axis='x')
+
+            if key == glfw.KEY_Y:
+                if self.camera_mode:
+                    pass
+                else:
+                    snap_object_to_boundary(env=self.env, object_id=self.object_id, axis='y')
+
+            if key == glfw.KEY_U:
+                if self.camera_mode:
+                    pass
+                else:
+                    snap_object_to_boundary(env=self.env, object_id=self.object_id, axis='z')
+
 
             # controls for moving position
             if key == glfw.KEY_W:
