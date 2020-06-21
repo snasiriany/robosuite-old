@@ -7,7 +7,6 @@ for your camera in the mujoco XML file.
 
 """
 TODOs:
-- Snap to grid, at least for rotation.
 - Fast or slow pos / rot toggle?
 """
 
@@ -582,6 +581,55 @@ def rotate_object(env, direction, angle, object_id):
     env.sim.data.qpos[joint_id + 3: joint_id + 7] = T.convert_quat(T.mat2quat(obj_rot), to='wxyz')
     env.sim.forward()
 
+def snap_object_to_grid(env, object_id, rotation_set):
+    """
+    Helper function to snap object to rotation grid.
+    """
+    obj_name = env.object_id_to_name[object_id]
+
+    # current object rotation
+    body_id = env.object_body_ids[obj_name]
+    obj_rot = T.quat2mat(T.convert_quat(env.sim.data.body_xquat[body_id], to='xyzw'))
+
+    # get closes rotation
+    obj_rot = get_closest_rotation(obj_rot, rotation_set)
+
+    # set new object rotation
+    joint_id = env.object_qpos_addrs[obj_name][0]
+    env.sim.data.qpos[joint_id + 3: joint_id + 7] = T.convert_quat(T.mat2quat(obj_rot), to='wxyz')
+    env.sim.forward()
+
+def get_axis_aligned_rotations():
+    """
+    Helper function to get a set of axis-aligned rotation matrices, used to enable
+    projecting an object's rotation to one of these matrices.
+    """
+    # angle spacing of 10 degrees in each dimension
+    spacing = 10
+    num = (360 // 10) + 1
+    angles = np.linspace(0, 360, num)[:-1]
+    all_rotations = []
+    for i in range(len(angles)):
+        rad = np.pi * angles[i] / 180.0
+        all_rotations.append(T.rotation_matrix(rad, [1., 0., 0.], point=None)[:3, :3])
+        all_rotations.append(T.rotation_matrix(rad, [0., 1., 0.], point=None)[:3, :3])
+        all_rotations.append(T.rotation_matrix(rad, [0., 0., 1.], point=None)[:3, :3])
+    return all_rotations
+
+def get_closest_rotation(rotation, rotation_set):
+    """
+    Projects @rotation onto the set of rotations in @rotation_set by finding
+    the rotation in the set that minimizes rotation distance (as measured
+    by the absolute angle of the axis-angle representaion of the delta
+    rotation).
+    """
+    dists = []
+    for i in range(len(rotation_set)):
+        delta_rotation = rotation_set[i].T.dot(rotation)
+        _, angle = T.quat2axisangle(T.mat2quat(delta_rotation))
+        dists.append(np.abs(angle))
+    min_ind = np.argmin(dists)
+    return rotation_set[min_ind]
 
 class KeyboardHandler:
     def __init__(self, env):
@@ -594,6 +642,9 @@ class KeyboardHandler:
         self.camera_id = self.env.sim.model.camera_name2id("frontview")
         self.num_cameras = len(self.env.sim.model.camera_names)
         self.camera_mode = False
+
+        # used for snapping to rotation grid
+        self._rotation_grid = get_axis_aligned_rotations()
 
         # store pressed keys
         self._keys = []
@@ -633,6 +684,13 @@ class KeyboardHandler:
                     print("Saving current model")
                     env.save_ckpt()
                     env.save_object_xml()
+
+            # snap current rotation to gri
+            if key == glfw.KEY_E:
+                if self.camera_mode:
+                    pass
+                else:
+                    snap_object_to_grid(env=self.env, object_id=self.object_id, rotation_set=self._rotation_grid)
 
             # controls for moving position
             if key == glfw.KEY_W:
