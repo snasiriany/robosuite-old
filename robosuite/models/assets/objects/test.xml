@@ -1,0 +1,32 @@
+<mujoco model="object">
+  <worldbody>
+    <body name="object">
+      <body name="collision">
+        <inertial diaginertia="0.0001 0.0001 0.0001" mass="0.0001" pos="0 0 0"/>
+        <body name="cube" pos="0.06056655989065962 -0.033741282188866614 -0.07998669973848782" quat="-0.0001779789017746225 0.00012705079279839993 -0.003686176147311926 0.9999932050704956">
+          <geom density="5000" friction="2.0 0.005 0.0001" group="1" name="cube" pos="0 0 0" rgba="1 0 0 1" size="0.02 0.02 0.02" solimp="0.9 0.95 0.001" solref="0.02 1.0" type="box"/>
+        </body>
+        <body name="cylinder" pos="0.020960764182424763 -0.010468122349583435 -0.0799686285589335" quat="-2.7437470635049976e-05 9.614561713533476e-05 0.012272479943931103 0.9999246597290039">
+          <geom density="500" friction="2.0 0.005 0.0001" group="1" name="cylinder" pos="0 0 0" rgba="0 0 1 1" size="0.02 0.02" solimp="0.9 0.95 0.001" solref="0.02 1.0" type="cylinder"/>
+        </body>
+      </body>
+      <body name="visual">
+        <inertial diaginertia="0.0001 0.0001 0.0001" mass="0.0001" pos="0 0 0"/>
+        <body name="cube_visual" pos="0.06056655989065962 -0.033741282188866614 -0.07998669973848782" quat="-0.0001779789017746225 0.00012705079279839993 -0.003686176147311926 0.9999932050704956">
+          <geom conaffinity="0" contype="0" group="1" rgba="1 0 0 1" size="0.02 0.02 0.02" type="box"/>
+        </body>
+        <body name="cylinder_visual" pos="0.020960764182424763 -0.010468122349583435 -0.0799686285589335" quat="-2.7437470635049976e-05 9.614561713533476e-05 0.012272479943931103 0.9999246597290039">
+          <geom conaffinity="0" contype="0" group="1" rgba="0 0 1 1" size="0.02 0.02" type="cylinder"/>
+        </body>
+      </body>
+      <site name="bottom_site" pos="0 0 -0.1" rgba="0 0 0 0" size="0.005"/>
+      <site name="top_site" pos="0 0 0.1" rgba="0 0 0 0" size="0.005"/>
+      <site name="horizontal_radius_site" pos="0.1 0.1 0" rgba="0 0 0 0" size="0.005"/>
+    </body>
+  </worldbody>
+  <actuator/>
+  <asset/>
+  <equality/>
+  <contact/>
+  <default/>
+</mujoco>

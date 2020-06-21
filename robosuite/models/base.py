@@ -123,7 +123,8 @@ class MujocoXML(object):
             if pretty:
                 # TODO: get a better pretty print library
                 parsed_xml = xml.dom.minidom.parseString(xml_str)
-                xml_str = parsed_xml.toprettyxml(newl="")
+                # xml_str = parsed_xml.toprettyxml(newl="")
+                xml_str = parsed_xml.toprettyxml(indent="  ")
             f.write(xml_str)
 
     def merge_asset(self, other):
