@@ -2,6 +2,12 @@ import numpy as np
 from robosuite.models.objects import MujocoXMLObject
 from robosuite.utils.mjcf_utils import xml_path_completion, array_to_string
 
+class TestXMLObject(MujocoXMLObject):
+    """
+    Test for composite object.
+    """
+    def __init__(self, joint=None):
+        super().__init__(xml_path_completion("objects/test.xml"), joint=joint)
 
 class CoffeeMachineXMLObject(MujocoXMLObject):
     """
