@@ -2,6 +2,7 @@ from .objects import MujocoObject, MujocoXMLObject, MujocoGeneratedObject
 
 from .xml_objects import (
     TestXMLObject,
+    OctoCupObject,
     CoffeeMachineXMLObject,
     WoodenPieceObject,
     DoorObject,

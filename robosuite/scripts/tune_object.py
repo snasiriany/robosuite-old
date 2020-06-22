@@ -366,8 +366,7 @@ class SawyerWorkspace(SawyerEnv):
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
 
         # reset initial joint positions (gets reset in sim during super() call in _reset_internal)
-        self.init_qpos = np.array([-0.5538, -0.8208, 0.4155, 1.8409, -0.4955, 0.6482, 1.9628])
-        self.init_qpos += np.random.randn(self.init_qpos.shape[0]) * 0.02
+        self.init_qpos = np.array([0.00, -1.18, 0.00, 2.18, 0.00, 0.57, 1.5708])
 
         # ensure that all objects have free joints
         for obj_name in self.mujoco_objects:
@@ -1029,6 +1028,8 @@ if __name__ == "__main__":
         size=[0.02, 0.02],
         rgba=[0, 0, 1, 1],
     )
+    from robosuite.models.objects import OctoCupObject
+    mujoco_objects["cup"] = OctoCupObject()
     # mujoco_objects["test12"] = TestXMLObject()
 
     # make the environment and key handler
