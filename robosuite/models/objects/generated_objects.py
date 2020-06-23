@@ -3,6 +3,7 @@ import numpy as np
 import xml.etree.ElementTree as ET
 from copy import deepcopy
 
+import robosuite.utils.transform_utils as T
 from robosuite.models.objects import MujocoGeneratedObject
 from robosuite.utils.mjcf_utils import new_body, new_geom, new_site, new_joint, array_to_string
 from robosuite.utils.mjcf_utils import RED, GREEN, BLUE
@@ -339,6 +340,8 @@ class CompositeBodyObject(MujocoGeneratedObject):
         total_size,
         object_locations,
         joint=None,
+        locations_relative_to_center=False,
+        object_quats=None,
     ):
         """
         Args:
@@ -362,6 +365,9 @@ class CompositeBodyObject(MujocoGeneratedObject):
 
         self.object_locations = np.array(object_locations)
         assert self.object_locations.shape[0] == len(self.objects)
+
+        self.locations_relative_to_center = locations_relative_to_center
+        self.object_quats = deepcopy(object_quats) if object_quats is not None else None
 
     def get_bottom_offset(self):
         return np.array([0., 0., -self.total_size[2]])
@@ -395,14 +401,18 @@ class CompositeBodyObject(MujocoGeneratedObject):
             # bounding box for object
             cartesian_size = self.objects[i].get_bounding_box_size()
 
-            # use object location to convert to position coordinate (the origin is the
-            # center of the composite object)
-            loc = self.object_locations[i]
-            pos = [
-                (-self.total_size[0] + cartesian_size[0]) + loc[0],
-                (-self.total_size[1] + cartesian_size[1]) + loc[1],
-                (-self.total_size[2] + cartesian_size[2]) + loc[2],
-            ]
+            if self.locations_relative_to_center:
+                # no need to convert
+                pos = self.object_locations[i]
+            else:
+                # use object location to convert to position coordinate (the origin is the
+                # center of the composite object)
+                loc = self.object_locations[i]
+                pos = [
+                    (-self.total_size[0] + cartesian_size[0]) + loc[0],
+                    (-self.total_size[1] + cartesian_size[1]) + loc[1],
+                    (-self.total_size[2] + cartesian_size[2]) + loc[2],
+                ]
 
             # add object body
             if visual:
@@ -418,6 +428,9 @@ class CompositeBodyObject(MujocoGeneratedObject):
 
             # set body position
             obj_body.set("pos", array_to_string(pos))
+
+            if self.object_quats is not None:
+                obj_body.set("quat", array_to_string(self.object_quats[i]))
 
             # add object joints
             for j, joint in enumerate(self.objects[i].joint):
@@ -679,6 +692,8 @@ class CompositeObject(MujocoGeneratedObject):
         density=100.,
         solref=[0.02, 1.],
         solimp=[0.9, 0.95, 0.001],
+        locations_relative_to_center=False,
+        geom_quats=None,
     ):
         """
         Args:
@@ -715,6 +730,8 @@ class CompositeObject(MujocoGeneratedObject):
         self.density = density
         self.solref = list(solref)
         self.solimp = list(solimp)
+        self.locations_relative_to_center = locations_relative_to_center
+        self.geom_quats = deepcopy(geom_quats) if geom_quats is not None else None
 
     def get_bottom_offset(self):
         return np.array([0., 0., -self.total_size[2]])
@@ -756,14 +773,18 @@ class CompositeObject(MujocoGeneratedObject):
             size = self.geom_sizes[i]
             cartesian_size = self._size_to_cartesian_half_lengths(geom_type, size)
 
-            # use geom location to convert to position coordinate (the origin is the
-            # center of the composite object)
-            loc = self.geom_locations[i]
-            pos = [
-                (-self.total_size[0] + cartesian_size[0]) + loc[0],
-                (-self.total_size[1] + cartesian_size[1]) + loc[1],
-                (-self.total_size[2] + cartesian_size[2]) + loc[2],
-            ]
+            if self.locations_relative_to_center:
+                # no need to convert
+                pos = self.geom_locations[i]
+            else:
+                # use geom location to convert to position coordinate (the origin is the
+                # center of the composite object)
+                loc = self.geom_locations[i]
+                pos = [
+                    (-self.total_size[0] + cartesian_size[0]) + loc[0],
+                    (-self.total_size[1] + cartesian_size[1]) + loc[1],
+                    (-self.total_size[2] + cartesian_size[2]) + loc[2],
+                ]
 
             # geom name
             if self.geom_names is not None:
@@ -783,6 +804,9 @@ class CompositeObject(MujocoGeneratedObject):
             else:
                 geom_friction = np.array([1., 0.005, 0.0001]) # mujoco default
             geom_friction = array_to_string(geom_friction)
+
+            if self.geom_quats is not None:
+                geom_properties['quat'] = array_to_string(self.geom_quats[i])
 
             # add geom
             main_body.append(
@@ -875,6 +899,8 @@ class CompositeBoxObject(CompositeObject):
         density=100.,
         solref=[0.02, 1.],
         solimp=[0.9, 0.95, 0.001],
+        locations_relative_to_center=False,
+        geom_quats=None,
     ):
         super().__init__(
             total_size=total_size,
@@ -889,6 +915,8 @@ class CompositeBoxObject(CompositeObject):
             density=density,
             solref=solref,
             solimp=solimp,
+            locations_relative_to_center=locations_relative_to_center,
+            geom_quats=geom_quats,
         )
 
 
@@ -1193,6 +1221,217 @@ class BoundingPatternObject(BoundingObject, BoxPatternObject):
             "geom_rgbas" : bounding_geom_args["geom_rgbas"] + pattern_geom_args["geom_rgbas"],
             "geom_frictions" : bounding_geom_args["geom_frictions"] + pattern_geom_args["geom_frictions"],
         }
+
+
+class HollowCylinderObject(CompositeObject):
+    """
+    Approximates a hollow cylinder with a number of box geoms.
+    """
+    def __init__(
+        self,
+        outer_radius=0.0425,
+        inner_radius=0.03,
+        height=0.05,
+        ngeoms=8,
+        joint=None,
+        rgba=None,
+        density=100.,
+        make_half=False,
+    ):
+        # radius of the inner cup hole and entire cup
+        self.r1 = inner_radius
+        self.r2 = outer_radius
+
+        # number of geoms used to approximate the cylindrical shell
+        self.n = ngeoms
+
+        # cylinder half-height
+        self.height = height
+
+        # half-width of each box inferred from triangle of radius + box half-length
+        # since the angle will be (360 / n) / 2 
+        self.unit_box_width = self.r2 * np.sin(np.pi / self.n)
+
+        # half-height of each box inferred from the same triangle with inner radius
+        self.unit_box_height = (self.r2 - self.r1) * np.cos(np.pi / self.n) / 2.
+
+        # each box geom depth will end up defining the height of the cup
+        self.unit_box_depth = self.height
+
+        # radius of intermediate circle that connects all box centers
+        self.int_r = (self.r1 * np.cos(np.pi / self.n)) + self.unit_box_height 
+
+        # if True, will only make half the hollow cylinder
+        self.make_half = make_half
+
+        geom_args = self._get_geom_args()
+
+        super().__init__(
+            total_size=[self.r2, self.r2, self.height],
+            geom_types=geom_args["geom_types"],
+            geom_locations=geom_args["geom_locations"],
+            geom_sizes=geom_args["geom_sizes"],
+            geom_names=None,
+            geom_rgbas=None,
+            geom_frictions=None,
+            joint=joint,
+            rgba=rgba,
+            density=density,
+            solref=[0.02, 1.],
+            solimp=[0.998, 0.998, 0.001],
+            # solimp=[0.9, 0.95, 0.001],
+            locations_relative_to_center=True,
+            geom_quats=geom_args["geom_quats"],
+        )
+
+    def _get_geom_args(self):
+
+        angle_step = 2. * np.pi / self.n
+        box_centers = []
+        box_quats = []
+        box_sizes = []
+
+        n_make = self.n
+        if self.make_half:
+            # only make half the shell
+            n_make = (self.n // 2) + 1
+
+        for i in range(n_make):
+            # we start with the top-most box object and proceed clockwise (thus an offset of np.pi)
+            box_angle = np.pi - i * angle_step
+            box_centers.append(
+                np.array([
+                    self.int_r * np.cos(box_angle),
+                    self.int_r * np.sin(box_angle),
+                    0.
+                ])
+            )
+            box_quats.append(
+                np.array([np.cos(box_angle / 2.), 0., 0., np.sin(box_angle / 2.)])
+            )
+            box_sizes.append(
+                np.array([self.unit_box_height, self.unit_box_width, self.unit_box_depth])
+            )
+
+        geom_types = ["box"] * len(box_centers)
+
+        return dict(
+            geom_types=geom_types,
+            geom_locations=box_centers,
+            geom_sizes=box_sizes,
+            geom_quats=box_quats,
+        )
+
+
+class CupObject(CompositeBodyObject):
+    """
+    Cup object with optional handle.
+    """
+    def __init__(
+        self,
+        outer_cup_radius=0.0425,
+        inner_cup_radius=0.03,
+        cup_height=0.05,
+        cup_ngeoms=8,
+        cup_base_height=0.01,
+        cup_base_offset=0.005,
+        add_handle=False,
+        handle_outer_radius=0.03,
+        handle_inner_radius=0.015,
+        handle_thickness=0.005,
+        handle_ngeoms=8,
+        joint=None,
+        rgba=None,
+        density=100.,
+    ):
+
+        # radius of the inner cup hole and entire cup
+        self.r1 = inner_cup_radius
+        self.r2 = outer_cup_radius
+
+        # number of geoms used to approximate the cylindrical shell
+        self.n = cup_ngeoms
+
+        # cup half-height
+        self.cup_height = cup_height
+
+        # cup base args
+        self.cup_base_height = cup_base_height
+        self.cup_base_offset = cup_base_offset
+
+        # handle args
+        self.add_handle = add_handle
+        self.handle_outer_radius = handle_outer_radius
+        self.handle_inner_radius = handle_inner_radius
+        self.handle_thickness = handle_thickness
+        self.handle_ngeoms = handle_ngeoms
+
+        objects = []
+        object_locations = []
+        object_quats = []
+
+        # cup body
+        self.cup_body = HollowCylinderObject(
+            outer_radius=self.r2,
+            inner_radius=self.r1,
+            height=self.cup_height,
+            ngeoms=self.n,
+            rgba=rgba,
+            density=density,
+            joint=[],
+        )
+        objects.append(self.cup_body)
+        object_locations.append([0., 0., 0.])
+        object_quats.append([1., 0., 0., 0.])
+
+        # cup base
+        self.cup_base = CylinderObject(
+            size=[self.cup_body.int_r, self.cup_base_height],
+            rgba=rgba,
+            density=density,
+            solref=[0.02, 1.],
+            solimp=[0.998, 0.998, 0.001],
+            joint=[],
+        )
+        objects.append(self.cup_base)
+        object_locations.append([0., 0., -self.cup_height + self.cup_base_height + self.cup_base_offset])
+        object_quats.append([1., 0., 0., 0.])
+
+        if self.add_handle:
+            # cup handle is a hollow half-cylinder
+            self.cup_handle = HollowCylinderObject(
+                outer_radius=self.handle_outer_radius,
+                inner_radius=self.handle_inner_radius,
+                height=self.handle_thickness,
+                ngeoms=self.handle_ngeoms,
+                rgba=rgba,
+                density=density,
+                joint=[],
+                make_half=True,
+            )
+            # translate handle to right side of cup body, and rotate by +90 degrees about y-axis 
+            # to orient the handle geoms on the cup body
+            objects.append(self.cup_handle)
+            object_locations.append([0., (self.cup_body.r2 + self.cup_handle.unit_box_width), 0.])
+            object_quats.append(
+                T.convert_quat(
+                    T.mat2quat(T.rotation_matrix(angle=np.pi / 2., direction=[0., 1., 0.])[:3, :3]),
+                    to="wxyz",
+                )
+            )
+
+        body_total_size = [self.r2, self.r2, self.cup_height]
+        if self.add_handle:
+            body_total_size[1] += self.handle_outer_radius
+
+        super().__init__(
+            objects=objects,
+            total_size=body_total_size,
+            object_locations=object_locations,
+            joint=joint,
+            locations_relative_to_center=True,
+            object_quats=object_quats,
+        )
 
 
 class BoxObject(MujocoGeneratedObject):

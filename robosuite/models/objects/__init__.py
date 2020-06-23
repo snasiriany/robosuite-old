@@ -2,7 +2,6 @@ from .objects import MujocoObject, MujocoXMLObject, MujocoGeneratedObject
 
 from .xml_objects import (
     TestXMLObject,
-    OctoCupObject,
     CoffeeMachineXMLObject,
     WoodenPieceObject,
     DoorObject,
@@ -31,6 +30,7 @@ from .generated_objects import (
     BoundingObject,
     BoxPatternObject,
     BoundingPatternObject,
+    CupObject,
     PotWithHandlesObject,
     BoxObject,
     CylinderObject,

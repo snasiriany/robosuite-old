@@ -9,10 +9,6 @@ class TestXMLObject(MujocoXMLObject):
     def __init__(self, joint=None):
         super().__init__(xml_path_completion("objects/test.xml"), joint=joint)
 
-class OctoCupObject(MujocoXMLObject):
-    def __init__(self, joint=None):
-        super().__init__(xml_path_completion("objects/octo-cup.xml"), joint=joint)
-
 class CoffeeMachineXMLObject(MujocoXMLObject):
     """
     Coffee machine imported from external meshes.

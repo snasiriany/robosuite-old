@@ -978,7 +978,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print("\nWelcome to the object creation script! You will be able to make a composite object")
-    print("by moving individual pieces around using your keyboard. The controls are printed below.")
+    print("by moving individual pieces around using your keyboard. The controls are below.")
     print("You can control the objects, or move cameras around to get a better view.")
     print("The first object is treated as the workspace for crafting the composite object.")
 
@@ -987,7 +987,7 @@ if __name__ == "__main__":
     print_command("q", "toggle camera mode on/off")
     print_command("SPACE", "save current workspace and composite object to hdf5 and xml")
 
-    print("Object Controls\n")
+    print("\nObject Controls\n")
     print_command("Keys", "Command")
     print_command("TAB", "switch active object")
     print_command("w-s", "move object along x-axis")
@@ -1000,7 +1000,7 @@ if __name__ == "__main__":
     print_command("g", "snap object to center of reference workspace")
     print_command("h", "snap object to tabletop surface")
 
-    print("Camera Controls\n")
+    print("\nCamera Controls\n")
     print_command("Keys", "Command")
     print_command("TAB", "switch active camera")
     print_command("w-s", "zoom the camera in/out")
@@ -1028,8 +1028,24 @@ if __name__ == "__main__":
         size=[0.02, 0.02],
         rgba=[0, 0, 1, 1],
     )
-    from robosuite.models.objects import OctoCupObject
-    mujoco_objects["cup"] = OctoCupObject()
+
+    from robosuite.models.objects import CupObject
+    mujoco_objects["cup"] = CupObject(
+        outer_cup_radius=0.0425,
+        inner_cup_radius=0.03,
+        cup_height=0.05,
+        cup_ngeoms=64,#8,
+        cup_base_height=0.01,
+        cup_base_offset=0.005,
+        add_handle=True,
+        handle_outer_radius=0.03,
+        handle_inner_radius=0.02,
+        handle_thickness=0.005,
+        handle_ngeoms=64,
+        rgba=[1, 0, 0, 1],
+        density=100.,
+    )
+
     # mujoco_objects["test12"] = TestXMLObject()
 
     # make the environment and key handler
