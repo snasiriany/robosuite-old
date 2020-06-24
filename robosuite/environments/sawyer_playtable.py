@@ -116,6 +116,7 @@ class SawyerPT(SawyerEnv):
 
         object_state = []
         object_only_state = []  # no gripper-object pos
+        object_target = []  # only the target
 
         for obj_name in self.task_object_names:
             pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id(obj_name)])
@@ -123,13 +124,16 @@ class SawyerPT(SawyerEnv):
             rel_pos = gripper_site_pos - pos
             object_state.extend([pos, quat, rel_pos])
             object_only_state.extend([pos])
+            object_target.extend([pos] if obj_name == self.source_name else [np.zeros_like(pos)])
 
         object_state = np.concatenate(object_state, axis=0)
         object_only_state = np.concatenate(object_only_state, axis=0)
+        object_target = np.concatenate(object_target, axis=0)
         ostate = [o.flat_state for o in self.interactive_objects.values()]
 
         di["object-state"] = np.concatenate([object_state] + ostate)
         di["object-goal-state"] = np.concatenate([object_only_state] + ostate)
+        di["object-goal-single"] = object_target
         di["task_spec"] = self.task_spec
         return di
 
