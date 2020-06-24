@@ -38,6 +38,9 @@ from robosuite.utils.mjcf_utils import postprocess_model_xml, new_body, new_geom
 DELTA_POS_KEY_PRESS = 0.01 # delta position per key press
 DELTA_ROT_KEY_PRESS = 5 # delta angle per key press
 
+FINETUNE_POS_KEY_PRESS = 0.001
+FINETUNE_ROT_KEY_PRESS = 1
+
 DELTA_POS_CAMERA_KEY_PRESS = 0.05 # delta position per key press
 DELTA_ROT_CAMERA_KEY_PRESS = 1 # delta angle per key press
 
@@ -202,6 +205,7 @@ class CompositeMujocoObject(MujocoGeneratedObject):
 
             # set body pose
             pos, quat = self.object_poses[k]
+            quat = T.convert_quat(quat, to="wxyz")
             obj_body.set("pos", array_to_string(pos))
             obj_body.set("quat", array_to_string(quat))
 
@@ -326,14 +330,13 @@ class SawyerWorkspace(SawyerEnv):
 
         # reference object should be at center of table
         ref_object_name = self.object_id_to_name[0]
-        ref_object = self.mujoco_objects[ref_object_name]
         initializer.sample_on_top(
             ref_object_name,
             surface_name="table",
             x_range=(0.0, 0.0),
             y_range=(0.0, 0.0),
             z_rotation=(0.0, 0.0),
-            ensure_object_boundary_in_range=True,
+            ensure_object_boundary_in_range=False,
         )
 
         # initialize other objects randomly on tabletop
@@ -344,7 +347,7 @@ class SawyerWorkspace(SawyerEnv):
                 x_range=(-self.table_full_size[0] / 2., self.table_full_size[0] / 2.),
                 y_range=(-self.table_full_size[1] / 2., self.table_full_size[1] / 2.),
                 z_rotation=(0.0, 0.0),
-                ensure_object_boundary_in_range=True,
+                ensure_object_boundary_in_range=False,
             )
         return initializer
 
@@ -435,12 +438,7 @@ class SawyerWorkspace(SawyerEnv):
         # reference object used to compute relative poses
         ref_object_name = self.object_id_to_name[0]
         ref_object = self.mujoco_objects[ref_object_name]
-        ref_body_id = self.object_body_ids[ref_object_name]
         ref_bbox = ref_object.get_bounding_box_size()
-        ref_pos = np.array(self.sim.data.body_xpos[ref_body_id])
-        ref_rot = T.quat2mat(T.convert_quat(self.sim.data.body_xquat[ref_body_id], to='xyzw'))
-        ref_pose = T.make_pose(ref_pos, ref_rot)
-        inv_ref_pose = T.pose_inv(ref_pose)
 
         # merge assets and compute relative poses
         relative_object_poses = OrderedDict()
@@ -449,12 +447,9 @@ class SawyerWorkspace(SawyerEnv):
             composite.merge_asset(obj_mjcf)
 
             # relative pose to reference frame will become poses for body components
-            obj_body_id = self.object_body_ids[obj_name]
-            obj_pos = np.array(self.sim.data.body_xpos[obj_body_id])
-            obj_rot = T.quat2mat(T.convert_quat(self.sim.data.body_xquat[obj_body_id], to='xyzw'))
-            obj_pose = T.make_pose(obj_pos, obj_rot)
-            rel_pose = T.pose_in_A_to_pose_in_B(obj_pose, inv_ref_pose)
-            relative_object_poses[obj_name] = T.mat2pose(rel_pose)
+            rel_pos, rel_rot = get_relative_object_pose(env=env, object_name=obj_name, ref_object_name=ref_object_name)
+            rel_quat = T.mat2quat(rel_rot)
+            relative_object_poses[obj_name] = (rel_pos, rel_quat)
 
         # create main body
         main_body = new_body()
@@ -532,6 +527,53 @@ class SawyerWorkspace(SawyerEnv):
         self.sim.set_state_from_flattened(state)
         self.sim.forward()
 
+
+def get_object_pose(env, object_name=None, object_id=None):
+    """
+    Helper function to get object pos and rot from environment.
+    """
+    assert (object_name is not None) or (object_id is not None)
+    if object_name is None:
+        object_name = env.object_id_to_name[object_id]
+    body_id = env.object_body_ids[object_name]
+    obj_pos = np.array(env.sim.data.body_xpos[body_id])
+    obj_rot = T.quat2mat(T.convert_quat(env.sim.data.body_xquat[body_id], to='xyzw'))
+    return (obj_pos, obj_rot)
+
+def set_object_pose(env, object_name=None, object_id=None, pos=None, rot=None):
+    """
+    Helper function to set object pos and rot in environment.
+    """
+    assert (object_name is not None) or (object_id is not None)
+    if object_name is None:
+        object_name = env.object_id_to_name[object_id]
+    joint_id = env.object_qpos_addrs[object_name][0]
+
+    assert (pos is not None) or (rot is not None)
+    if pos is not None:
+        env.sim.data.qpos[joint_id: joint_id + 3] = np.array(pos)
+    if rot is not None:
+        env.sim.data.qpos[joint_id + 3: joint_id + 7] = T.convert_quat(T.mat2quat(rot), to='wxyz')
+    env.sim.forward()
+
+def get_relative_object_pose(env, object_name=None, object_id=None, ref_object_name=None, ref_object_id=None):
+    """
+    Helper function to get relative pose of one object with respect to another object.
+    """
+    pos1, rot1 = get_object_pose(env=env, object_name=object_name, object_id=object_id)
+    pos2, rot2 = get_object_pose(env=env, object_name=ref_object_name, object_id=ref_object_id)
+    return relative_pose(env=env, pos1=pos1, rot1=rot1, pos2=pos2, rot2=rot2)
+
+def relative_pose(env, pos1, rot1, pos2, rot2):
+    """
+    Helper function to compute relative pose of (pos1, rot1) with respect to (pos2, rot2).
+    """
+    ref_pose = T.make_pose(pos2, rot2)
+    inv_ref_pose = T.pose_inv(ref_pose)
+    pose = T.make_pose(pos1, rot1)
+    rel_pose = T.pose_in_A_to_pose_in_B(pose, inv_ref_pose)
+    return rel_pose[:3, 3], rel_pose[:3, :3]
+
 def move_object(env, direction, scale, object_id):
     """
     Move object position in world frame.
@@ -541,19 +583,9 @@ def move_object(env, direction, scale, object_id):
         scale: a float for how much to move along that direction
         object_id: which object to modify
     """
-    obj_name = env.object_id_to_name[object_id]
-
-    # current object pos
-    body_id = env.object_body_ids[obj_name]
-    obj_pos = np.array(env.sim.data.body_xpos[body_id])
-
-    # new object pos
+    obj_pos, _ = get_object_pose(env=env, object_id=object_id)
     obj_pos += scale * np.array(direction)
-
-    # set new object pos
-    joint_id = env.object_qpos_addrs[obj_name][0]
-    env.sim.data.qpos[joint_id: joint_id + 3] = obj_pos
-    env.sim.forward()
+    set_object_pose(env=env, object_id=object_id, pos=obj_pos)
 
 def rotate_object(env, direction, angle, object_id):
     """
@@ -564,40 +596,22 @@ def rotate_object(env, direction, angle, object_id):
         angle: a float for how much to rotate about that direction
         object_id: which camera to modify
     """
-    obj_name = env.object_id_to_name[object_id]
+    _, obj_rot = get_object_pose(env=env, object_id=object_id)
 
-    # current object rotation
-    body_id = env.object_body_ids[obj_name]
-    obj_rot = T.quat2mat(T.convert_quat(env.sim.data.body_xquat[body_id], to='xyzw'))
-
-    # rotate by angle and direction to get new camera rotation
+    # compute new rotation
     rad = np.pi * angle / 180.0
     R = T.rotation_matrix(rad, np.array(direction), point=None)
-    # obj_rot = obj_rot.dot(R[:3, :3])
     obj_rot = R[:3, :3].T.dot(obj_rot)
 
-    # set new object rotation
-    joint_id = env.object_qpos_addrs[obj_name][0]
-    env.sim.data.qpos[joint_id + 3: joint_id + 7] = T.convert_quat(T.mat2quat(obj_rot), to='wxyz')
-    env.sim.forward()
+    set_object_pose(env=env, object_id=object_id, rot=obj_rot)
 
 def snap_object_to_center(env, object_id, other_object_id):
     """
     Helper function to snap object to the center of another object.
     """
-    obj_name = env.object_id_to_name[object_id]
-    other_obj_name = env.object_id_to_name[other_object_id]
-
-    # current object pos
-    body_id = env.object_body_ids[obj_name]
-    obj_pos = np.array(env.sim.data.body_xpos[body_id])
-
     # set new object pos to center of other object
-    other_body_id = env.object_body_ids[other_obj_name]
-    obj_pos = np.array(env.sim.data.body_xpos[other_body_id])
-    joint_id = env.object_qpos_addrs[obj_name][0]
-    env.sim.data.qpos[joint_id: joint_id + 3] = obj_pos
-    env.sim.forward()
+    other_obj_pos, _ = get_object_pose(env=env, object_id=other_object_id)
+    set_object_pose(env=env, object_id=object_id, pos=other_obj_pos)
 
 def snap_object_to_table(env, object_id):
     """
@@ -607,8 +621,7 @@ def snap_object_to_table(env, object_id):
     # use object id to get name, object, and position
     obj_name = env.object_id_to_name[object_id]
     obj = env.mujoco_objects[obj_name]
-    body_id = env.object_body_ids[obj_name]
-    obj_pos = np.array(env.sim.data.body_xpos[body_id])
+    obj_pos, _ = get_object_pose(env=env, object_name=obj_name)
 
     # change object z-position to lie directly on top of table
     table_body_id = env.sim.model.body_name2id("table")
@@ -617,9 +630,7 @@ def snap_object_to_table(env, object_id):
     obj_pos[2] = table_pos[2] + offset
 
     # set new object pos
-    joint_id = env.object_qpos_addrs[obj_name][0]
-    env.sim.data.qpos[joint_id: joint_id + 3] = obj_pos
-    env.sim.forward()
+    set_object_pose(env=env, object_name=obj_name, pos=obj_pos)
 
 def snap_object_to_boundary(env, object_id, axis):
     """
@@ -630,8 +641,7 @@ def snap_object_to_boundary(env, object_id, axis):
     # use object id to get name, object, and position
     obj_name = env.object_id_to_name[object_id]
     obj = env.mujoco_objects[obj_name]
-    body_id = env.object_body_ids[obj_name]
-    obj_pos = np.array(env.sim.data.body_xpos[body_id])
+    obj_pos, _ = get_object_pose(env=env, object_name=obj_name)
 
     best_dist = np.inf
     best_obj_pos = None
@@ -673,27 +683,16 @@ def snap_object_to_boundary(env, object_id, axis):
             best_obj_pos = new_obj_pos
 
     # set new object pos
-    joint_id = env.object_qpos_addrs[obj_name][0]
-    env.sim.data.qpos[joint_id: joint_id + 3] = best_obj_pos
-    env.sim.forward()
+    set_object_pose(env=env, object_name=obj_name, pos=best_obj_pos)
 
 def snap_object_to_grid(env, object_id, rotation_set):
     """
     Helper function to snap object to rotation grid.
     """
-    obj_name = env.object_id_to_name[object_id]
-
-    # current object rotation
-    body_id = env.object_body_ids[obj_name]
-    obj_rot = T.quat2mat(T.convert_quat(env.sim.data.body_xquat[body_id], to='xyzw'))
-
-    # get closes rotation
+    # get closest rotation and set it
+    _, obj_rot = get_object_pose(env=env, object_id=object_id)
     obj_rot = get_closest_rotation(obj_rot, rotation_set)
-
-    # set new object rotation
-    joint_id = env.object_qpos_addrs[obj_name][0]
-    env.sim.data.qpos[joint_id + 3: joint_id + 7] = T.convert_quat(T.mat2quat(obj_rot), to='wxyz')
-    env.sim.forward()
+    set_object_pose(env=env, object_id=object_id, rot=obj_rot)
 
 def get_axis_aligned_rotations():
     """
@@ -738,6 +737,11 @@ class KeyboardHandler:
         self.camera_id = self.env.sim.model.camera_name2id("frontview")
         self.num_cameras = len(self.env.sim.model.camera_names)
         self.camera_mode = False
+        self.finetune_mode = False
+        self.measurement_mode = False
+        self.measurement_pose = [None, None]
+        self.object_pos_scale = DELTA_POS_KEY_PRESS
+        self.object_rot_scale = DELTA_ROT_KEY_PRESS
 
         # used for snapping to rotation grid
         self._rotation_grid = get_axis_aligned_rotations()
@@ -764,6 +768,46 @@ class KeyboardHandler:
             if key == glfw.KEY_Q:
                 self.camera_mode = not self.camera_mode
 
+            # finetune mode for less sensitive movement
+            if key == glfw.KEY_1:
+                if self.camera_mode:
+                    pass
+                else:
+                    self.finetune_mode = not self.finetune_mode
+                    if self.finetune_mode:
+                        self.object_pos_scale = FINETUNE_POS_KEY_PRESS
+                        self.object_rot_scale = FINETUNE_ROT_KEY_PRESS
+                    else:
+                        self.object_pos_scale = DELTA_POS_KEY_PRESS
+                        self.object_rot_scale = DELTA_ROT_KEY_PRESS
+
+            # make a measurement
+            if key == glfw.KEY_Z:
+                if self.camera_mode:
+                    pass
+                else:
+                    if self.measurement_mode:
+                        # print relative pose
+                        new_pos, new_rot = get_object_pose(env=self.env, object_id=self.object_id)
+                        rel_pose = relative_pose(
+                            env=self.env, 
+                            pos1=new_pos, 
+                            rot1=new_rot, 
+                            pos2=self.measurement_pose[0], 
+                            rot2=self.measurement_pose[1],
+                        )
+                        rel_quat = T.convert_quat(T.mat2quat(rel_pose[1]), to="wxyz")
+                        print("measured relative position: {}".format(rel_pose[0]))
+                        print("measured relative quaternion: {}\n".format(rel_quat))
+                        # clear recorded pose
+                        self.measurement_pose = (None, None)
+                    else:
+                        # record current object pose as reference
+                        print("\nstarting measurement...")
+                        self.measurement_pose = get_object_pose(env=self.env, object_id=self.object_id)
+
+                    # toggle mode to indicate completion
+                    self.measurement_mode = not self.measurement_mode
 
             # switch camera / object
             if key == glfw.KEY_TAB:
@@ -835,42 +879,42 @@ class KeyboardHandler:
                     move_camera(env=self.env, direction=[0., 0., -1.], scale=DELTA_POS_CAMERA_KEY_PRESS, camera_id=self.camera_id)
                 else:
                     # move -x
-                    move_object(env=self.env, direction=[-1., 0., 0.], scale=DELTA_POS_KEY_PRESS, object_id=self.object_id)
+                    move_object(env=self.env, direction=[-1., 0., 0.], scale=self.object_pos_scale, object_id=self.object_id)
             elif key == glfw.KEY_S:
                 if self.camera_mode:
                     # move camera backward
                     move_camera(env=self.env, direction=[0., 0., 1.], scale=DELTA_POS_CAMERA_KEY_PRESS, camera_id=self.camera_id)
                 else:
                     # move x
-                    move_object(env=self.env, direction=[1., 0., 0.], scale=DELTA_POS_KEY_PRESS, object_id=self.object_id)
+                    move_object(env=self.env, direction=[1., 0., 0.], scale=self.object_pos_scale, object_id=self.object_id)
             elif key == glfw.KEY_A:
                 if self.camera_mode:
                     # move camera left
                     move_camera(env=self.env, direction=[-1., 0., 0.], scale=DELTA_POS_CAMERA_KEY_PRESS, camera_id=self.camera_id)
                 else:
                     # move -y
-                    move_object(env=self.env, direction=[0., -1., 0.], scale=DELTA_POS_KEY_PRESS, object_id=self.object_id)
+                    move_object(env=self.env, direction=[0., -1., 0.], scale=self.object_pos_scale, object_id=self.object_id)
             elif key == glfw.KEY_D:
                 if self.camera_mode:
                     # move camera right
                     move_camera(env=self.env, direction=[1., 0., 0.], scale=DELTA_POS_CAMERA_KEY_PRESS, camera_id=self.camera_id)
                 else:
                     # move y
-                    move_object(env=self.env, direction=[0., 1., 0.], scale=DELTA_POS_KEY_PRESS, object_id=self.object_id)
+                    move_object(env=self.env, direction=[0., 1., 0.], scale=self.object_pos_scale, object_id=self.object_id)
             elif key == glfw.KEY_R:
                 if self.camera_mode:
                     # move camera up
                     move_camera(env=self.env, direction=[0., 1., 0.], scale=DELTA_POS_CAMERA_KEY_PRESS, camera_id=self.camera_id)
                 else:
                     # move z
-                    move_object(env=self.env, direction=[0., 0., 1.], scale=DELTA_POS_KEY_PRESS, object_id=self.object_id)
+                    move_object(env=self.env, direction=[0., 0., 1.], scale=self.object_pos_scale, object_id=self.object_id)
             elif key == glfw.KEY_F:
                 if self.camera_mode:
                     # move camera down
                     move_camera(env=self.env, direction=[0., -1., 0.], scale=DELTA_POS_CAMERA_KEY_PRESS, camera_id=self.camera_id)
                 else:
                     # move -z
-                    move_object(env=self.env, direction=[0., 0., -1.], scale=DELTA_POS_KEY_PRESS, object_id=self.object_id)
+                    move_object(env=self.env, direction=[0., 0., -1.], scale=self.object_pos_scale, object_id=self.object_id)
 
 
             # controls for moving rotation
@@ -880,42 +924,42 @@ class KeyboardHandler:
                     rotate_camera(env=self.env, direction=[1., 0., 0.], angle=DELTA_ROT_CAMERA_KEY_PRESS, camera_id=self.camera_id)
                 else:
                     # rotate y
-                    rotate_object(env=self.env, direction=[0., 1., 0.], angle=DELTA_ROT_KEY_PRESS, object_id=self.object_id)
+                    rotate_object(env=self.env, direction=[0., 1., 0.], angle=self.object_rot_scale, object_id=self.object_id)
             elif key == glfw.KEY_DOWN:
                 if self.camera_mode:
                     # rotate camera down
                     rotate_camera(env=self.env, direction=[-1., 0., 0.], angle=DELTA_ROT_CAMERA_KEY_PRESS, camera_id=self.camera_id)
                 else:
                     # rotate y
-                    rotate_object(env=self.env, direction=[0., -1., 0.], angle=DELTA_ROT_KEY_PRESS, object_id=self.object_id)
+                    rotate_object(env=self.env, direction=[0., -1., 0.], angle=self.object_rot_scale, object_id=self.object_id)
             elif key == glfw.KEY_LEFT:
                 if self.camera_mode:
                     # rotate camera left
                     rotate_camera(env=self.env, direction=[0., 1., 0.], angle=DELTA_ROT_CAMERA_KEY_PRESS, camera_id=self.camera_id)
                 else:
                     # rotate x
-                    rotate_object(env=self.env, direction=[-1., 0., 0.], angle=DELTA_ROT_KEY_PRESS, object_id=self.object_id)
+                    rotate_object(env=self.env, direction=[-1., 0., 0.], angle=self.object_rot_scale, object_id=self.object_id)
             elif key == glfw.KEY_RIGHT:
                 if self.camera_mode:
                     # rotate camera right
                     rotate_camera(env=self.env, direction=[0., -1., 0.], angle=DELTA_ROT_CAMERA_KEY_PRESS, camera_id=self.camera_id)
                 else:
                     # rotate x
-                    rotate_object(env=self.env, direction=[1., 0., 0.], angle=DELTA_ROT_KEY_PRESS, object_id=self.object_id)
+                    rotate_object(env=self.env, direction=[1., 0., 0.], angle=self.object_rot_scale, object_id=self.object_id)
             elif key == glfw.KEY_PERIOD:
                 if self.camera_mode:
                     # rotate camera counterclockwise
                     rotate_camera(env=self.env, direction=[0., 0., 1.], angle=DELTA_ROT_CAMERA_KEY_PRESS, camera_id=self.camera_id)
                 else:
                     # rotate z
-                    rotate_object(env=self.env, direction=[0., 0., -1.], angle=DELTA_ROT_KEY_PRESS, object_id=self.object_id)
+                    rotate_object(env=self.env, direction=[0., 0., -1.], angle=self.object_rot_scale, object_id=self.object_id)
             elif key == glfw.KEY_SLASH:
                 if self.camera_mode:
                     # rotate camera clockwise
                     rotate_camera(env=self.env, direction=[0., 0., -1.], angle=DELTA_ROT_CAMERA_KEY_PRESS, camera_id=self.camera_id)
                 else:
                     # rotate z
-                    rotate_object(env=self.env, direction=[0., 0., 1.], angle=DELTA_ROT_KEY_PRESS, object_id=self.object_id)
+                    rotate_object(env=self.env, direction=[0., 0., 1.], angle=self.object_rot_scale, object_id=self.object_id)
 
 
     def on_press(self, window, key, scancode, action, mods):
@@ -990,6 +1034,7 @@ if __name__ == "__main__":
     print("\nObject Controls\n")
     print_command("Keys", "Command")
     print_command("TAB", "switch active object")
+    print_command("1", "toggle precise movement mode")
     print_command("w-s", "move object along x-axis")
     print_command("a-d", "move object along y-axis")
     print_command("r-f", "move object along z-axis")
@@ -999,6 +1044,7 @@ if __name__ == "__main__":
     print_command("e", "snap object rotation to closest axis-aligned rotation")
     print_command("g", "snap object to center of reference workspace")
     print_command("h", "snap object to tabletop surface")
+    print_command("z", "make a measurement: press once to record initial pose and again to print relative pose")
 
     print("\nCamera Controls\n")
     print_command("Keys", "Command")
@@ -1015,36 +1061,77 @@ if __name__ == "__main__":
 
     # first object is the bounding box workspace for creating the compositional object
     mujoco_objects["ref"] = BoxObject(
-        size=[0.1, 0.1, 0.1],
+        size=[0.1, 0.15, 0.125],
         rgba=[0, 1, 0, 0.1],
     )
 
-    # next are the individual pieces that should be rearranged in the workspace
-    mujoco_objects["cube"] = BoxObject(
-        size=[0.02, 0.02, 0.02],
-        rgba=[1, 0, 0, 1],
-    )
-    mujoco_objects["cylinder"] = CylinderObject(
-        size=[0.02, 0.02],
-        rgba=[0, 0, 1, 1],
-    )
+    # from robosuite.models.objects import CoffeeMachineBodyObject, CoffeeMachineLidObject, CoffeeMachineBaseObject, CoffeeMachinePodObject
+    # mujoco_objects["coffee_body"] = CoffeeMachineBodyObject()
+    # mujoco_objects["coffee_lid"] = CoffeeMachineLidObject()
+    # mujoco_objects["coffee_base"] = CoffeeMachineBaseObject()
 
-    from robosuite.models.objects import CupObject
-    mujoco_objects["cup"] = CupObject(
-        outer_cup_radius=0.0425,
-        inner_cup_radius=0.03,
-        cup_height=0.05,
-        cup_ngeoms=64,#8,
-        cup_base_height=0.01,
-        cup_base_offset=0.005,
-        add_handle=True,
-        handle_outer_radius=0.03,
-        handle_inner_radius=0.02,
-        handle_thickness=0.005,
-        handle_ngeoms=64,
-        rgba=[1, 0, 0, 1],
-        density=100.,
-    )
+    # from robosuite.models.objects import CupObject
+    # mujoco_objects["pod_holder"] = CupObject(
+    #     outer_cup_radius=0.03,
+    #     inner_cup_radius=0.025,
+    #     cup_height=0.025,
+    #     cup_ngeoms=64,#8,
+    #     cup_base_height=0.005,
+    #     cup_base_offset=0.005,
+    #     add_handle=False,
+    #     rgba=[1, 0, 0, 1],
+    #     density=100.,
+    # )
+
+    # mujoco_objects["pod_holder_holder"] = BoxObject(
+    #     size=[0.01, 0.02, 0.005],
+    #     rgba=[0.514, 0.286, 0.204, 1], # brown
+    # )
+
+    from robosuite.models.objects import CoffeeMachineObject2
+    mujoco_objects["coffee_machine"] = CoffeeMachineObject2()
+
+
+    # next are the individual pieces that should be rearranged in the workspace
+    # mujoco_objects["cube"] = BoxObject(
+    #     size=[0.02, 0.02, 0.02],
+    #     rgba=[1, 0, 0, 1],
+    # )
+    # mujoco_objects["cylinder"] = CylinderObject(
+    #     size=[0.02, 0.02],
+    #     rgba=[0, 0, 1, 1],
+    # )
+
+    # from robosuite.models.objects import CupObject
+    # mujoco_objects["cup"] = CupObject(
+    #     outer_cup_radius=0.02,
+    #     inner_cup_radius=0.015,
+    #     cup_height=0.02,
+    #     cup_ngeoms=64,#8,
+    #     cup_base_height=0.005,
+    #     cup_base_offset=0.005,
+    #     add_handle=True,
+    #     handle_outer_radius=0.0115,
+    #     handle_inner_radius=0.009,
+    #     handle_thickness=0.0025,
+    #     handle_ngeoms=64,
+    #     rgba=[1, 0, 0, 1],
+    #     density=100.,
+    # )
+
+    # from robosuite.models.objects import CoffeePodObject
+    # mujoco_objects["pod"] = CoffeePodObject(
+    #     lid_radius=0.02,
+    #     lid_height=0.001,
+    #     lid_rgba=[1, 0, 0, 1],
+    #     pod_radius=0.015,
+    #     pod_height=0.015,
+    #     pod_rgba=[1, 0, 0, 1],
+    #     density=100.,
+    # )
+
+    # from robosuite.models.objects import CoffeeMachineObject
+    # mujoco_objects["coffee"] = CoffeeMachineObject()
 
     # mujoco_objects["test12"] = TestXMLObject()
 

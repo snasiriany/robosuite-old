@@ -2,7 +2,10 @@ from .objects import MujocoObject, MujocoXMLObject, MujocoGeneratedObject
 
 from .xml_objects import (
     TestXMLObject,
-    CoffeeMachineXMLObject,
+    CoffeeMachineBodyObject,
+    CoffeeMachineLidObject,
+    CoffeeMachineBaseObject,
+    CoffeeMachinePodObject,
     WoodenPieceObject,
     DoorObject,
     SpinningPoleObject,
@@ -24,7 +27,9 @@ from .xml_objects import (
 from .generated_objects import (
     CompositeBodyObject,
     HingeStackObject,
+    CoffeeMachineObject2,
     CoffeeMachineObject,
+    CoffeePodObject,
     CompositeObject,
     CompositeBoxObject,
     BoundingObject,

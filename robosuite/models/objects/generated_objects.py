@@ -4,9 +4,11 @@ import xml.etree.ElementTree as ET
 from copy import deepcopy
 
 import robosuite.utils.transform_utils as T
-from robosuite.models.objects import MujocoGeneratedObject
+from robosuite.models.objects import MujocoGeneratedObject, MujocoXMLObject
 from robosuite.utils.mjcf_utils import new_body, new_geom, new_site, new_joint, array_to_string
 from robosuite.utils.mjcf_utils import RED, GREEN, BLUE
+
+from robosuite.models.objects import CoffeeMachineBodyObject, CoffeeMachineLidObject, CoffeeMachineBaseObject, CoffeeMachinePodObject
 
 
 class PotWithHandlesObject(MujocoGeneratedObject):
@@ -359,7 +361,7 @@ class CompositeBodyObject(MujocoGeneratedObject):
         """
         super().__init__(joint=joint, rgba=None)
 
-        assert np.all([isinstance(elem, MujocoGeneratedObject) for elem in objects])
+        assert np.all([isinstance(elem, MujocoGeneratedObject) or isinstance(elem, MujocoXMLObject) for elem in objects])
         self.objects = objects
         self.total_size = np.array(total_size)
 
@@ -369,6 +371,16 @@ class CompositeBodyObject(MujocoGeneratedObject):
         self.locations_relative_to_center = locations_relative_to_center
         self.object_quats = deepcopy(object_quats) if object_quats is not None else None
 
+        # merge assets of objects
+        for obj in self.objects:
+            for asset in obj.asset:
+                asset_name = asset.get("name")
+                asset_type = asset.tag
+                # Avoids duplication
+                pattern = "./{}[@name='{}']".format(asset_type, asset_name)
+                if self.asset.find(pattern) is None:
+                    self.asset.append(asset)
+
     def get_bottom_offset(self):
         return np.array([0., 0., -self.total_size[2]])
 
@@ -377,6 +389,9 @@ class CompositeBodyObject(MujocoGeneratedObject):
 
     def get_horizontal_radius(self):
         return np.linalg.norm(self.total_size[:2], 2)
+
+    def get_bounding_box_size(self):
+        return np.array(self.total_size)
 
     def _get_body(self, name=None, site=None, visual=False):
         main_body = new_body()
@@ -504,6 +519,123 @@ class HingeStackObject(CompositeBodyObject):
             object_locations=object_locations,
             # joint=[],
             joint=None,
+        )
+
+
+class CoffeeMachineObject2(CompositeBodyObject):
+    def __init__(self):
+
+        # pieces of the coffee machine
+        body = CoffeeMachineBodyObject(joint=[])
+        body_size = body.get_bounding_box_size()
+        body_location = [0., 0., 0.]
+
+        lid = CoffeeMachineLidObject(joint=[])
+        lid_size = lid.get_bounding_box_size()
+        # add tolerance to allow lid to open fully
+        lid_location = [
+            body_size[0] - lid_size[0],
+            2. * body_size[1] + 0.01,
+            2. * (body_size[2] - lid_size[2]) + 0.005,
+        ]
+
+        # add in hinge joint to lid
+        hinge_pos = [0., -lid_size[1], -lid_size[2]]
+        hinge_joint = dict(
+            type="hinge",
+            axis="1 0 0",
+            pos=array_to_string(hinge_pos),
+            limited="true",
+            range="0 1.57",
+            # frictionloss="1.0", 
+            damping="0.01",
+        )
+        lid = CoffeeMachineLidObject(joint=[hinge_joint])
+
+        base = CoffeeMachineBaseObject(joint=[])
+        base_size = base.get_bounding_box_size()
+        base_location = [
+            body_size[0] - base_size[0],
+            2. * body_size[1],
+            0.
+        ]
+
+        pod_holder_holder = BoxObject(
+            size=[
+                0.01, 
+                # tolerance for having the lid stick out a little from the holder
+                0.9 * (lid_size[1] - lid_size[0]), 
+                0.005,
+            ],
+            rgba=[0.514, 0.286, 0.204, 1], # brown
+            joint=[],
+        )
+        pod_holder_holder_size = pod_holder_holder.get_bounding_box_size()
+        pod_holder_holder_location = [
+            body_size[0] - pod_holder_holder_size[0],
+            2. * body_size[1],
+            # put right underneath lid
+            2. * (body_size[2] - lid_size[2] - pod_holder_holder_size[2]),
+        ]
+
+        pod_holder = CupObject(
+            outer_cup_radius=lid_size[0],
+            # outer_cup_radius=0.03,
+            inner_cup_radius=0.025,
+            cup_height=0.025,
+            cup_ngeoms=64,#8,
+            cup_base_height=0.005,
+            cup_base_offset=0.005,
+            add_handle=False,
+            rgba=[1, 0, 0, 1],
+            density=100.,
+            joint=[],
+        )
+        pod_holder_size = pod_holder.get_bounding_box_size()
+        pod_holder_location = [
+            body_size[0] - pod_holder_size[0],
+            2. * (body_size[1] + pod_holder_holder_size[1]),
+            # put right underneath lid
+            2. * (body_size[2] - lid_size[2] - pod_holder_size[2])
+        ]
+
+        total_size = [
+            body_size[0],
+            body_size[1] + base_size[1],
+            body_size[2],
+        ]
+
+        objects = [
+            body,
+            lid,
+            base,
+            pod_holder_holder,
+            pod_holder,
+        ]
+
+        object_locations = [
+            body_location,
+            lid_location,
+            base_location,
+            pod_holder_holder_location,
+            pod_holder_location,
+        ]
+
+        object_quats = [
+            [0., 0., 0., 1.], # z-rotate body and base by 180
+            [1., 0., 0., 0.],
+            [0., 0., 0., 1.],
+            [1., 0., 0., 0.],
+            [1., 0., 0., 0.],
+        ]
+
+        super().__init__(
+            objects=objects,
+            total_size=total_size,
+            object_locations=object_locations,
+            object_quats=object_quats,
+            joint=[],
+            # joint=None,
         )
 
 
@@ -670,6 +802,65 @@ class CoffeeMachineObject(CompositeBodyObject):
             object_locations=object_locations,
             joint=[],
             # joint=None,
+        )
+
+
+class CoffeePodObject(CompositeBodyObject):
+    def __init__(
+        self,
+        lid_radius=0.02,
+        lid_height=0.005,
+        lid_rgba=None,
+        pod_radius=0.01,
+        pod_height=0.02,
+        pod_rgba=None,
+        joint=None,
+        density=None,
+    ):
+        self.lid_radius = lid_radius
+        self.lid_height = lid_height
+        self.lid_rgba = lid_rgba
+        self.pod_radius = pod_radius
+        self.pod_height = pod_height
+        self.pod_rgba = pod_rgba
+
+        self.lid = CylinderObject(
+            size=[self.lid_radius, self.lid_height],
+            rgba=self.lid_rgba,
+            density=density,
+            solref=[0.02, 1.],
+            solimp=[0.998, 0.998, 0.001],
+            joint=[],
+        )
+
+        self.pod = CylinderObject(
+            size=[self.pod_radius, self.pod_height],
+            rgba=self.pod_rgba,
+            density=density,
+            solref=[0.02, 1.],
+            solimp=[0.998, 0.998, 0.001],
+            joint=[],
+        )
+
+        # just stack the cylinders on top of each other
+        objects = [self.pod, self.lid]
+        total_size = [
+            max(self.lid_radius, self.pod_radius),
+            max(self.lid_radius, self.pod_radius),
+            self.lid_height + self.pod_height,
+        ]
+        object_locations = [
+            [total_size[0] - self.pod_radius, total_size[1] - self.pod_radius, 0.],
+            [total_size[0] - self.lid_radius, total_size[1] - self.lid_radius, 2. * self.pod_height],
+        ]
+
+        super().__init__(
+            objects=objects,
+            total_size=total_size,
+            object_locations=object_locations,
+            joint=joint,
+            locations_relative_to_center=False,
+            object_quats=None,
         )
 
 

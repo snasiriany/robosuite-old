@@ -8,7 +8,7 @@ import robosuite.utils.env_utils as EU
 from robosuite.environments.sawyer import SawyerEnv
 
 from robosuite.models.arenas import TableArena
-from robosuite.models.objects import BoxObject, CompositeBodyObject, HingeStackObject, CoffeeMachineObject, CoffeeMachineXMLObject
+from robosuite.models.objects import BoxObject, CompositeBodyObject, HingeStackObject, CoffeeMachineObject
 from robosuite.models.robots import Sawyer
 from robosuite.models.tasks import TableTopMergedTask, UniformRandomSampler, SequentialCompositeSampler, RoundRobinSampler
 from robosuite.controllers import load_controller_config
@@ -186,7 +186,7 @@ class SawyerCoffee(SawyerEnv):
 
         assert(self.eval_mode)
 
-        ordered_object_names = ["coffee_machine"]
+        ordered_object_names = ["coffee_machine", "coffee_pod"]
         bounds = self._grid_bounds_for_eval_mode()
         initializer = SequentialCompositeSampler(round_robin_all_pairs=True)
 
@@ -229,6 +229,10 @@ class SawyerCoffee(SawyerEnv):
         hole_z_offset = 0.
         ret["coffee_machine"] = [hole_x_bounds, hole_y_bounds, hole_z_rot_bounds, hole_z_offset]
 
+        ret["coffee_pod"] = [
+            (0.2, 0.2, 1), (0.2, 0.2, 1), (0., 0., 1), 0.
+        ]
+
         return ret
 
     def _load_model(self):
@@ -251,10 +255,38 @@ class SawyerCoffee(SawyerEnv):
         # initialize objects of interest
         # self.coffee_machine = HingeStackObject()
         # self.coffee_machine = CoffeeMachineObject()
-        self.coffee_machine = CoffeeMachineXMLObject()
+        # self.coffee_machine = CoffeeMachineXMLObject()
+
+        from robosuite.models.objects import CoffeeMachineBodyObject, CoffeeMachineLidObject, CoffeeMachineBaseObject, CoffeeMachinePodObject, CylinderObject
+        # self.coffee_pod = CoffeeMachinePodObject()
+        self.coffee_pod = CylinderObject(
+            size=[0.0225, 0.02],
+            rgba=[1, 0, 0, 1],
+            density=100.,
+            solref=[0.02, 1.],
+            solimp=[0.998, 0.998, 0.001],
+        )
+
+        # from robosuite.models.objects import TestXMLObject
+        # self.coffee_machine = TestXMLObject()
+        from robosuite.models.objects import CoffeeMachineObject2
+        self.coffee_machine = CoffeeMachineObject2()
+        # from robosuite.models.objects import CupObject
+        # self.coffee_machine = CupObject(
+        #     outer_cup_radius=0.03,
+        #     inner_cup_radius=0.025,
+        #     cup_height=0.025,
+        #     cup_ngeoms=64,#8,
+        #     cup_base_height=0.005,
+        #     cup_base_offset=0.005,
+        #     add_handle=False,
+        #     rgba=[1, 0, 0, 1],
+        #     density=100.,
+        # )
 
         self.mujoco_objects = OrderedDict([
             ("coffee_machine", self.coffee_machine), 
+            ("coffee_pod", self.coffee_pod),
         ])
 
         # reset initial joint positions (gets reset in sim during super() call in _reset_internal)
