@@ -366,8 +366,7 @@ class SawyerWorkspace(SawyerEnv):
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
 
         # reset initial joint positions (gets reset in sim during super() call in _reset_internal)
-        self.init_qpos = np.array([-0.5538, -0.8208, 0.4155, 1.8409, -0.4955, 0.6482, 1.9628])
-        self.init_qpos += np.random.randn(self.init_qpos.shape[0]) * 0.02
+        self.init_qpos = np.array([0.00, -1.18, 0.00, 2.18, 0.00, 0.57, 1.5708])
 
         # ensure that all objects have free joints
         for obj_name in self.mujoco_objects:
@@ -979,7 +978,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print("\nWelcome to the object creation script! You will be able to make a composite object")
-    print("by moving individual pieces around using your keyboard. The controls are printed below.")
+    print("by moving individual pieces around using your keyboard. The controls are below.")
     print("You can control the objects, or move cameras around to get a better view.")
     print("The first object is treated as the workspace for crafting the composite object.")
 
@@ -988,7 +987,7 @@ if __name__ == "__main__":
     print_command("q", "toggle camera mode on/off")
     print_command("SPACE", "save current workspace and composite object to hdf5 and xml")
 
-    print("Object Controls\n")
+    print("\nObject Controls\n")
     print_command("Keys", "Command")
     print_command("TAB", "switch active object")
     print_command("w-s", "move object along x-axis")
@@ -1001,7 +1000,7 @@ if __name__ == "__main__":
     print_command("g", "snap object to center of reference workspace")
     print_command("h", "snap object to tabletop surface")
 
-    print("Camera Controls\n")
+    print("\nCamera Controls\n")
     print_command("Keys", "Command")
     print_command("TAB", "switch active camera")
     print_command("w-s", "zoom the camera in/out")
@@ -1029,6 +1028,24 @@ if __name__ == "__main__":
         size=[0.02, 0.02],
         rgba=[0, 0, 1, 1],
     )
+
+    from robosuite.models.objects import CupObject
+    mujoco_objects["cup"] = CupObject(
+        outer_cup_radius=0.0425,
+        inner_cup_radius=0.03,
+        cup_height=0.05,
+        cup_ngeoms=64,#8,
+        cup_base_height=0.01,
+        cup_base_offset=0.005,
+        add_handle=True,
+        handle_outer_radius=0.03,
+        handle_inner_radius=0.02,
+        handle_thickness=0.005,
+        handle_ngeoms=64,
+        rgba=[1, 0, 0, 1],
+        density=100.,
+    )
+
     # mujoco_objects["test12"] = TestXMLObject()
 
     # make the environment and key handler

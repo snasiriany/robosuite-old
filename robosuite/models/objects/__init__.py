@@ -30,6 +30,7 @@ from .generated_objects import (
     BoundingObject,
     BoxPatternObject,
     BoundingPatternObject,
+    CupObject,
     PotWithHandlesObject,
     BoxObject,
     CylinderObject,
