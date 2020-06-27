@@ -523,7 +523,10 @@ class HingeStackObject(CompositeBodyObject):
 
 
 class CoffeeMachineObject2(CompositeBodyObject):
-    def __init__(self):
+    def __init__(
+        self,
+        add_cup=False,
+    ):
 
         # pieces of the coffee machine
         body = CoffeeMachineBodyObject(joint=[])
@@ -531,7 +534,7 @@ class CoffeeMachineObject2(CompositeBodyObject):
         body_location = [0., 0., 0.]
 
         lid = CoffeeMachineLidObject(joint=[])
-        lid_size = lid.get_bounding_box_size()
+        lid_size = self.lid_size = lid.get_bounding_box_size()
         # add tolerance to allow lid to open fully
         lid_location = [
             body_size[0] - lid_size[0],
@@ -540,15 +543,18 @@ class CoffeeMachineObject2(CompositeBodyObject):
         ]
 
         # add in hinge joint to lid
-        hinge_pos = [0., -lid_size[1], -lid_size[2]]
+        # hinge_pos = [0., -lid_size[1], -lid_size[2]]
+        hinge_pos = [0., -lid_size[1], 0.]
         hinge_joint = dict(
             type="hinge",
             axis="1 0 0",
             pos=array_to_string(hinge_pos),
             limited="true",
-            range="0 1.57",
+            range="{} {}".format(0, 2. * np.pi / 3.),
+            # range="0 1.57",
             # frictionloss="1.0", 
-            damping="0.01",
+            # damping="0.01",
+            damping="0.005",
         )
         lid = CoffeeMachineLidObject(joint=[hinge_joint])
 
@@ -567,7 +573,8 @@ class CoffeeMachineObject2(CompositeBodyObject):
                 0.9 * (lid_size[1] - lid_size[0]), 
                 0.005,
             ],
-            rgba=[0.514, 0.286, 0.204, 1], # brown
+            # rgba=[0.514, 0.286, 0.204, 1], # brown
+            rgba=[0.839, 0.839, 0.839, 1], # silver
             joint=[],
         )
         pod_holder_holder_size = pod_holder_holder.get_bounding_box_size()
@@ -582,16 +589,17 @@ class CoffeeMachineObject2(CompositeBodyObject):
             outer_cup_radius=lid_size[0],
             # outer_cup_radius=0.03,
             inner_cup_radius=0.025,
-            cup_height=0.025,
+            # inner_cup_radius=0.02,
+            cup_height=0.028,
             cup_ngeoms=64,#8,
             cup_base_height=0.005,
-            cup_base_offset=0.005,
+            cup_base_offset=0.002,
             add_handle=False,
             rgba=[1, 0, 0, 1],
-            density=100.,
+            density=1000.,
             joint=[],
         )
-        pod_holder_size = pod_holder.get_bounding_box_size()
+        pod_holder_size = self.pod_holder_size = pod_holder.get_bounding_box_size()
         pod_holder_location = [
             body_size[0] - pod_holder_size[0],
             2. * (body_size[1] + pod_holder_holder_size[1]),
@@ -628,6 +636,37 @@ class CoffeeMachineObject2(CompositeBodyObject):
             [1., 0., 0., 0.],
             [1., 0., 0., 0.],
         ]
+
+        # add a rigidly mounted cup to the base
+        self.add_cup = add_cup
+        if self.add_cup:
+            cup = CupObject(
+                outer_cup_radius=0.03,
+                inner_cup_radius=0.025,
+                cup_height=0.025,
+                cup_ngeoms=64,#8,
+                cup_base_height=0.005,
+                cup_base_offset=0.005,
+                add_handle=True,
+                handle_outer_radius=0.015,
+                handle_inner_radius=0.010,
+                handle_thickness=0.003,
+                handle_ngeoms=64,
+                rgba=[0.839, 0.839, 0.839, 1],
+                density=1000.,
+                joint=[],
+            )
+            objects.append(cup)
+            object_locations.append([
+                body_size[0] - cup.total_size[0],
+                2. * (body_size[1] + pod_holder_holder_size[1]) + pod_holder_size[1] - cup.total_size[1],
+                2. * base_size[2],
+            ])
+            rot_angle = -np.pi / 2.
+            object_quats.append(
+                [np.cos(rot_angle / 2), 0, 0, np.sin(rot_angle / 2)]
+            )
+
 
         super().__init__(
             objects=objects,

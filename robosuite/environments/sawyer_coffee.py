@@ -170,8 +170,16 @@ class SawyerCoffee(SawyerEnv):
         initializer.sample_on_top(
             "coffee_machine",
             surface_name="table",
-            x_range=(-0.03, 0.03),
-            y_range=(-0.03, 0.03),
+            x_range=(0.0, 0.0),
+            y_range=(-0.1, -0.1),
+            z_rotation=(-np.pi / 6., -np.pi / 6.),
+            ensure_object_boundary_in_range=False
+        )
+        initializer.sample_on_top(
+            "coffee_pod",
+            surface_name="table",
+            x_range=(-0.13, -0.07),
+            y_range=(0.17, 0.23),
             z_rotation=(0.0, 0.0),
             ensure_object_boundary_in_range=False
         )
@@ -221,16 +229,19 @@ class SawyerCoffee(SawyerEnv):
         """
         ret = {}
 
-        # (low, high, number of grid points for this dimension)
-        hole_x_bounds = (0., 0., 1)
-        hole_y_bounds = (0., 0., 1)
-        # hole_z_rot_bounds = (0., 0., 1)
-        hole_z_rot_bounds = (-np.pi / 6., -np.pi / 6., 1)
-        hole_z_offset = 0.
-        ret["coffee_machine"] = [hole_x_bounds, hole_y_bounds, hole_z_rot_bounds, hole_z_offset]
+        # (low, high, number of grid points for each dimension)
+        ret["coffee_machine"] = [
+            (0., 0., 1), 
+            (-0.1, -0.1, 1), 
+            (-np.pi / 6., -np.pi / 6., 1), 
+            0.,
+        ]
 
         ret["coffee_pod"] = [
-            (0.2, 0.2, 1), (0.2, 0.2, 1), (0., 0., 1), 0.
+            (-0.13, -0.07, 3), 
+            (0.17, 0.23, 3), 
+            (0., 0., 1), 
+            0.,
         ]
 
         return ret
@@ -258,19 +269,19 @@ class SawyerCoffee(SawyerEnv):
         # self.coffee_machine = CoffeeMachineXMLObject()
 
         from robosuite.models.objects import CoffeeMachineBodyObject, CoffeeMachineLidObject, CoffeeMachineBaseObject, CoffeeMachinePodObject, CylinderObject
-        # self.coffee_pod = CoffeeMachinePodObject()
-        self.coffee_pod = CylinderObject(
-            size=[0.0225, 0.02],
-            rgba=[1, 0, 0, 1],
-            density=100.,
-            solref=[0.02, 1.],
-            solimp=[0.998, 0.998, 0.001],
-        )
+        self.coffee_pod = CoffeeMachinePodObject()
+        # self.coffee_pod = CylinderObject(
+        #     size=[0.0225, 0.02],
+        #     rgba=[1, 0, 0, 1],
+        #     density=100.,
+        #     solref=[0.02, 1.],
+        #     solimp=[0.998, 0.998, 0.001],
+        # )
 
         # from robosuite.models.objects import TestXMLObject
         # self.coffee_machine = TestXMLObject()
         from robosuite.models.objects import CoffeeMachineObject2
-        self.coffee_machine = CoffeeMachineObject2()
+        self.coffee_machine = CoffeeMachineObject2(add_cup=True)
         # from robosuite.models.objects import CupObject
         # self.coffee_machine = CupObject(
         #     outer_cup_radius=0.03,
@@ -311,7 +322,15 @@ class SawyerCoffee(SawyerEnv):
         """
         super()._get_reference()
         self.object_body_ids = {}
-        self.object_body_ids["coffee_machine"]  = self.sim.model.body_name2id("coffee_machine")
+        self.object_body_ids["coffee_pod_holder"] = self.sim.model.body_name2id("coffee_machine_4")
+        self.object_body_ids["coffee_pod"] = self.sim.model.body_name2id("coffee_pod")
+        self.hinge_qpos_addr = self.sim.model.get_joint_qpos_addr("coffee_machine_1_0")
+
+        # size of bounding box for pod holder
+        self.pod_holder_size = self.mujoco_objects["coffee_machine"].pod_holder_size
+
+        # size of bounding box for pod
+        self.pod_size = self.mujoco_objects["coffee_pod"].get_bounding_box_size()
 
         self.l_finger_geom_ids = [
             self.sim.model.geom_name2id(x) for x in self.gripper.left_finger_geoms
@@ -325,6 +344,8 @@ class SawyerCoffee(SawyerEnv):
         Resets simulation internal configurations.
         """
         super()._reset_internal()
+        self.sim.data.qpos[self.hinge_qpos_addr] = 2. * np.pi / 3.
+        self.sim.forward()
 
     def reward(self, action=None):
         """
@@ -381,19 +402,20 @@ class SawyerCoffee(SawyerEnv):
             gripper_pose = T.pose2mat((di["eef_pos"], di["eef_quat"]))
             world_pose_in_gripper = T.pose_inv(gripper_pose)
 
+            # add pose and relative poses of relevant bodies
             for k in self.object_body_ids:
-                # position and rotation of the pieces
+                # position and rotation of the relevant bodies
                 body_id = self.object_body_ids[k]
-                block_pos = np.array(self.sim.data.body_xpos[body_id])
-                block_quat = T.convert_quat(
+                body_pos = np.array(self.sim.data.body_xpos[body_id])
+                body_quat = T.convert_quat(
                     np.array(self.sim.data.body_xquat[body_id]), to="xyzw"
                 )
-                di["{}_pos".format(k)] = block_pos
-                di["{}_quat".format(k)] = block_quat
+                di["{}_pos".format(k)] = body_pos
+                di["{}_quat".format(k)] = body_quat
 
                 # get relative pose of object in gripper frame
-                block_pose = T.pose2mat((block_pos, block_quat))
-                rel_pose = T.pose_in_A_to_pose_in_B(block_pose, world_pose_in_gripper)
+                body_pose = T.pose2mat((body_pos, body_quat))
+                rel_pose = T.pose_in_A_to_pose_in_B(body_pose, world_pose_in_gripper)
                 rel_pos, rel_quat = T.mat2pose(rel_pose)
                 di["{}_to_eef_pos".format(k)] = rel_pos
                 di["{}_to_eef_quat".format(k)] = rel_quat
@@ -402,6 +424,10 @@ class SawyerCoffee(SawyerEnv):
                 object_state_keys.append("{}_quat".format(k))
                 object_state_keys.append("{}_to_eef_pos".format(k))
                 object_state_keys.append("{}_to_eef_quat".format(k))
+
+            # add hinge angle of lid
+            di["hinge_angle"] = np.array([self.sim.data.qpos[self.hinge_qpos_addr]])
+            object_state_keys.append("hinge_angle")
 
             di["object-state"] = np.concatenate([di[k] for k in object_state_keys])
 
@@ -427,7 +453,31 @@ class SawyerCoffee(SawyerEnv):
         """
         Returns True if task has been completed.
         """
-        return False
+
+        # lid should be closed (angle should be less than 5 degrees)
+        hinge_tolerance = 15. * np.pi / 180. 
+        hinge_angle = self.sim.data.qpos[self.hinge_qpos_addr]
+        lid_check = (hinge_angle < hinge_tolerance)
+
+        # pod should be in pod holder
+        pod_holder_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["coffee_pod_holder"]])
+        pod_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["coffee_pod"]])
+        pod_check = True
+
+        # center of pod cannot be more than the difference of radii away from the center of pod holder
+        r_diff = self.pod_holder_size[0] - self.pod_size[0]
+        if np.linalg.norm(pod_pos[:2] - pod_holder_pos[:2]) > r_diff:
+            pod_check = False
+
+        # make sure vertical pod dimension is above pod holder lower bound and below the lid lower bound
+        lid_body_id = self.sim.model.body_name2id("coffee_machine_1")
+        lid_pos = np.array(self.sim.data.body_xpos[lid_body_id])
+        z_lim_low = pod_holder_pos[2] - self.pod_holder_size[2]
+        z_lim_high = lid_pos[2] - self.mujoco_objects["coffee_machine"].lid_size[2]
+        if (pod_pos[2] - self.pod_size[2] < z_lim_low) or (pod_pos[2] + self.pod_size[2] > z_lim_high):
+            pod_check = False
+
+        return lid_check and pod_check
         # block_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["block"]])
         # hole_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["hole"]])
         # result = self.hole.in_box(

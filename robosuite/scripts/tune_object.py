@@ -1089,9 +1089,10 @@ if __name__ == "__main__":
     # )
 
     from robosuite.models.objects import CoffeeMachineObject2
-    mujoco_objects["coffee_machine"] = CoffeeMachineObject2()
+    mujoco_objects["coffee_machine"] = CoffeeMachineObject2(add_cup=True)
 
-
+    from robosuite.models.objects import CoffeeMachinePodObject
+    mujoco_objects["coffee_pod"] = CoffeeMachinePodObject()
     # next are the individual pieces that should be rearranged in the workspace
     # mujoco_objects["cube"] = BoxObject(
     #     size=[0.02, 0.02, 0.02],
