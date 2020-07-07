@@ -368,7 +368,7 @@ class SawyerCoffee(SawyerEnv):
         reward = 0.
 
         # sparse completion reward
-        if self._check_success():
+        if self._check_success()["task"]:
             reward = 1.0
 
         # use a shaping reward
@@ -453,6 +453,7 @@ class SawyerCoffee(SawyerEnv):
         """
         Returns True if task has been completed.
         """
+        success = {}
 
         # lid should be closed (angle should be less than 5 degrees)
         hinge_tolerance = 15. * np.pi / 180. 
@@ -463,11 +464,13 @@ class SawyerCoffee(SawyerEnv):
         pod_holder_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["coffee_pod_holder"]])
         pod_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["coffee_pod"]])
         pod_check = True
+        pod_horz_check = True
 
         # center of pod cannot be more than the difference of radii away from the center of pod holder
         r_diff = self.pod_holder_size[0] - self.pod_size[0]
         if np.linalg.norm(pod_pos[:2] - pod_holder_pos[:2]) > r_diff:
             pod_check = False
+            pod_horz_check = False
 
         # make sure vertical pod dimension is above pod holder lower bound and below the lid lower bound
         lid_body_id = self.sim.model.body_name2id("coffee_machine_1")
@@ -477,15 +480,32 @@ class SawyerCoffee(SawyerEnv):
         if (pod_pos[2] - self.pod_size[2] < z_lim_low) or (pod_pos[2] + self.pod_size[2] > z_lim_high):
             pod_check = False
 
-        return lid_check and pod_check
-        # block_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["block"]])
-        # hole_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["hole"]])
-        # result = self.hole.in_box(
-        #     position=hole_pos, 
-        #     object_position=block_pos, 
-        #     # object_size=self.obj_size,
-        # )
-        # return result
+        success["task"] = lid_check and pod_check
+
+        # partial task metrics below
+
+        # for pod insertion check, just check that bottom of pod is within some tolerance of bottom of container
+        pod_insertion_z_tolerance = 0.02
+        pod_z_check = (pod_pos[2] - self.pod_size[2] > z_lim_low) and (pod_pos[2] - self.pod_size[2] < z_lim_low + pod_insertion_z_tolerance)
+        success["insertion"] = pod_horz_check and pod_z_check
+
+        # pod grasp check
+        touch_left_finger = False
+        touch_right_finger = False
+        pod_geom_id = self.sim.model.geom_name2id("coffee_pod")
+        for i in range(self.sim.data.ncon):
+            c = self.sim.data.contact[i]
+            if c.geom1 in self.l_finger_geom_ids and c.geom2 == pod_geom_id:
+                touch_left_finger = True
+            if c.geom1 == pod_geom_id and c.geom2 in self.l_finger_geom_ids:
+                touch_left_finger = True
+            if c.geom1 in self.r_finger_geom_ids and c.geom2 == pod_geom_id:
+                touch_right_finger = True
+            if c.geom1 == pod_geom_id and c.geom2 in self.r_finger_geom_ids:
+                touch_right_finger = True
+        success["grasp"] = (touch_left_finger and touch_right_finger)
+
+        return success
 
     def _gripper_visualization(self):
         """
