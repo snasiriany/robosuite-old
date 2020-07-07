@@ -505,6 +505,15 @@ class SawyerCoffee(SawyerEnv):
                 touch_right_finger = True
         success["grasp"] = (touch_left_finger and touch_right_finger)
 
+        # check is True if the pod is on / near the rim of the pod holder
+        rim_horz_tolerance = 0.03
+        rim_horz_check = (np.linalg.norm(pod_pos[:2] - pod_holder_pos[:2]) < rim_horz_tolerance)
+
+        rim_vert_tolerance = 0.026
+        rim_vert_length = pod_pos[2] - pod_holder_pos[2] - self.pod_holder_size[2]
+        rim_vert_check = (rim_vert_length < rim_vert_tolerance) and (rim_vert_length > 0.)
+        success["rim"] = rim_horz_check and rim_vert_check
+
         return success
 
     def _gripper_visualization(self):
