@@ -606,7 +606,7 @@ class SawyerFitPegInHole(SawyerFit):
         **kwargs
     ):
         assert "gripper_type" not in kwargs
-        kwargs["gripper_type"] = "TwoFingerGripperWithRod"
+        kwargs["gripper_type"] = "TwoFingerGripperWithPeg"
         super().__init__(**kwargs)
 
     def _get_default_initializer(self):
@@ -699,7 +699,7 @@ class SawyerFitPegInHole(SawyerFit):
         # # np.random.shuffle(self.obj_size)
 
         TOLERANCE = 1.03
-        self.obj_size = np.array([0.02, 0.04, 0.07])
+        self.obj_size = np.array([0.0125, 0.0125, 0.03])
         self.hole_size = TOLERANCE * self.obj_size
 
         # piece = BoxObject(
@@ -708,7 +708,7 @@ class SawyerFitPegInHole(SawyerFit):
         # )
 
         self.hole = BoundingObject(
-            size=[0.1, 0.1, 0.1],
+            size=[0.1, 0.1, 0.07],
             hole_size=self.hole_size, 
             joint=[],
             rgba=[0, 0, 1, 1],
