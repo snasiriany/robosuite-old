@@ -614,8 +614,8 @@ class SawyerFitPegInHole(SawyerFit):
         initializer.sample_on_top(
             "hole",
             surface_name="table",
-            x_range=(0.0, 0.0),
-            y_range=(0.0, 0.0),
+            x_range=(-0.1, 0.1),
+            y_range=(-0.1, 0.1),
             z_rotation=0.,
             ensure_object_boundary_in_range=False,
         )
@@ -666,8 +666,8 @@ class SawyerFitPegInHole(SawyerFit):
         ret = {}
 
         # (low, high, number of grid points for this dimension)
-        hole_x_bounds = (0., 0., 1)
-        hole_y_bounds = (0., 0., 1)
+        hole_x_bounds = (-0.1, 0.1, 5)
+        hole_y_bounds = (-0.1, 0.1, 5)
         hole_z_rot_bounds = (0., 0., 1)
         hole_z_offset = 0.
         ret["hole"] = [hole_x_bounds, hole_y_bounds, hole_z_rot_bounds, hole_z_offset]
@@ -708,7 +708,7 @@ class SawyerFitPegInHole(SawyerFit):
         # )
 
         self.hole = BoundingObject(
-            size=[0.1, 0.1, 0.07],
+            size=[0.1, 0.1, 0.05],
             hole_size=self.hole_size, 
             joint=[],
             rgba=[0, 0, 1, 1],
