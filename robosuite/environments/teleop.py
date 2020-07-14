@@ -226,6 +226,12 @@ class SawyerFitPushLongBarTeleop(SawyerFitPushLongBar):
         # override initial joint position placement
         self.init_qpos = DEFAULT_JPOS
 
+class SawyerFitPegInHoleTeleop(SawyerFitPegInHole):
+    def _load_model(self):
+        super()._load_model()
+        # override initial joint position placement
+        self.init_qpos = DEFAULT_JPOS
+
 class SawyerThreadingTeleop(SawyerThreading):
     def _load_model(self):
         super()._load_model()
