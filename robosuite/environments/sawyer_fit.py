@@ -7,7 +7,7 @@ import robosuite.utils.transform_utils as T
 import robosuite.utils.env_utils as EU
 from robosuite.environments.sawyer import SawyerEnv
 
-from robosuite.models.arenas import LegoArena
+from robosuite.models.arenas import LegoArena, TableArena
 from robosuite.models.objects import BoxObject, WoodenPieceObject, BoundingObject, BoxPatternObject, BoundingPatternObject, CompositeBoxObject, CompositeObject
 from robosuite.models.robots import Sawyer
 from robosuite.models.tasks import TableTopMergedTask, UniformRandomSampler, SequentialCompositeSampler, RoundRobinSampler
@@ -682,7 +682,7 @@ class SawyerFitPegInHole(SawyerFit):
         self.mujoco_robot.set_base_xpos([0, 0, 0])
 
         # load model for table top workspace
-        self.mujoco_arena = LegoArena(
+        self.mujoco_arena = TableArena(
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
