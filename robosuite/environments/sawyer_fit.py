@@ -752,6 +752,14 @@ class SawyerFitPegInHole(SawyerFit):
             self.sim.model.geom_name2id(x) for x in self.gripper.right_finger_geoms
         ]
 
+    def _pre_action(self, action, policy_step=None):
+        """
+        Last gripper dimensions of action are ignored.
+        """
+        # close gripper
+        action[-self.gripper.dof:] = 1.
+        super()._pre_action(action, policy_step=policy_step)
+
     def _check_success(self):
         """
         Returns True if task has been completed.
