@@ -547,8 +547,6 @@ class SawyerCoffeeFT(SawyerCoffee):
     """
     Variant of Sawyer Coffee task that is equipped with FT sensors on the gripper
     and in the environment for improved observations.
-
-    Also makes the task easier by reducing pod holder friction (TODO).
     """
     def __init__(
         self,
@@ -579,9 +577,12 @@ class SawyerCoffeeFT(SawyerCoffee):
         from robosuite.models.objects import CoffeeMachineBodyObject, CoffeeMachineLidObject, CoffeeMachineBaseObject, CoffeeMachinePodObject, CylinderObject
         self.coffee_pod = CoffeeMachinePodObject()
 
-        ### TODO: lower friction here... ###
         from robosuite.models.objects import CoffeeMachineObject2
-        self.coffee_machine = CoffeeMachineObject2(add_cup=True)
+        # pod_holder_friction = [1.0, 5e-3, 1e-4] # low friction on holder surface
+        self.coffee_machine = CoffeeMachineObject2(
+            add_cup=True, 
+            # pod_holder_friction=pod_holder_friction,
+        )
 
         self.mujoco_objects = OrderedDict([
             ("coffee_machine", self.coffee_machine), 

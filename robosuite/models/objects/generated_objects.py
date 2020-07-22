@@ -526,6 +526,8 @@ class CoffeeMachineObject2(CompositeBodyObject):
     def __init__(
         self,
         add_cup=False,
+        pod_holder_friction=None,
+        pod_holder_priority=None,
     ):
 
         # pieces of the coffee machine
@@ -543,7 +545,6 @@ class CoffeeMachineObject2(CompositeBodyObject):
         ]
 
         # add in hinge joint to lid
-        # hinge_pos = [0., -lid_size[1], -lid_size[2]]
         hinge_pos = [0., -lid_size[1], 0.]
         hinge_joint = dict(
             type="hinge",
@@ -598,6 +599,8 @@ class CoffeeMachineObject2(CompositeBodyObject):
             rgba=[1, 0, 0, 1],
             density=1000.,
             joint=[],
+            friction=pod_holder_friction,
+            priority=pod_holder_priority,
         )
         pod_holder_size = self.pod_holder_size = pod_holder.get_bounding_box_size()
         pod_holder_location = [
@@ -917,6 +920,7 @@ class CompositeObject(MujocoGeneratedObject):
         geom_names=None,
         geom_rgbas=None,
         geom_frictions=None,
+        geom_priorities=None,
         joint=None,
         rgba=None,
         density=100.,
@@ -956,6 +960,7 @@ class CompositeObject(MujocoGeneratedObject):
         self.geom_names = list(geom_names) if geom_names is not None else None
         self.geom_rgbas = list(geom_rgbas) if geom_rgbas is not None else None
         self.geom_frictions = list(geom_frictions) if geom_frictions is not None else None
+        self.geom_priorities = list(geom_priorities) if geom_priorities is not None else None
         self.rgba = rgba
         self.density = density
         self.solref = list(solref)
@@ -1035,6 +1040,12 @@ class CompositeObject(MujocoGeneratedObject):
                 geom_friction = np.array([1., 0.005, 0.0001]) # mujoco default
             geom_friction = array_to_string(geom_friction)
 
+            # geom priority
+            if self.geom_priorities is not None and self.geom_priorities[i] is not None:
+                geom_priority = str(self.geom_priorities[i])
+            else:
+                geom_priority = "0"
+
             if self.geom_quats is not None:
                 geom_properties['quat'] = array_to_string(self.geom_quats[i])
 
@@ -1047,6 +1058,7 @@ class CompositeObject(MujocoGeneratedObject):
                     rgba=geom_rgba,
                     geom_type=geom_type,
                     friction=geom_friction,
+                    # priority=geom_priority,
                     **geom_properties,
                 )
             )
@@ -1467,6 +1479,8 @@ class HollowCylinderObject(CompositeObject):
         rgba=None,
         density=100.,
         make_half=False,
+        friction=None,
+        priority=None,
     ):
         # radius of the inner cup hole and entire cup
         self.r1 = inner_radius
@@ -1494,6 +1508,10 @@ class HollowCylinderObject(CompositeObject):
         # if True, will only make half the hollow cylinder
         self.make_half = make_half
 
+        # friction for the created geoms
+        self.friction = friction
+        self.priority = priority
+
         geom_args = self._get_geom_args()
 
         super().__init__(
@@ -1503,7 +1521,8 @@ class HollowCylinderObject(CompositeObject):
             geom_sizes=geom_args["geom_sizes"],
             geom_names=None,
             geom_rgbas=None,
-            geom_frictions=None,
+            geom_frictions=geom_args["geom_frictions"],
+            geom_priorities=geom_args["geom_priorities"],
             joint=joint,
             rgba=rgba,
             density=density,
@@ -1545,11 +1564,20 @@ class HollowCylinderObject(CompositeObject):
 
         geom_types = ["box"] * len(box_centers)
 
+        geom_frictions = None
+        if self.friction is not None:
+            geom_frictions = [self.friction for _ in range(n_make)]
+        geom_priorities = None
+        if self.priority is not None:
+            geom_priorities = [self.priority for _ in range(n_make)]
+
         return dict(
             geom_types=geom_types,
             geom_locations=box_centers,
             geom_sizes=box_sizes,
             geom_quats=box_quats,
+            geom_frictions=geom_frictions,
+            geom_priorities=geom_priorities
         )
 
 
@@ -1573,6 +1601,8 @@ class CupObject(CompositeBodyObject):
         joint=None,
         rgba=None,
         density=100.,
+        friction=None,
+        priority=None,
     ):
 
         # radius of the inner cup hole and entire cup
@@ -1609,6 +1639,8 @@ class CupObject(CompositeBodyObject):
             rgba=rgba,
             density=density,
             joint=[],
+            friction=friction,
+            priority=priority,
         )
         objects.append(self.cup_body)
         object_locations.append([0., 0., 0.])
@@ -1638,6 +1670,8 @@ class CupObject(CompositeBodyObject):
                 density=density,
                 joint=[],
                 make_half=True,
+                friction=friction,
+                priority=priority,
             )
             # translate handle to right side of cup body, and rotate by +90 degrees about y-axis 
             # to orient the handle geoms on the cup body
