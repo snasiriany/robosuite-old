@@ -542,3 +542,83 @@ class SawyerCoffee(SawyerEnv):
 
             self.sim.model.site_rgba[self.eef_site_id] = rgba
 
+
+class SawyerCoffeeFT(SawyerCoffee):
+    """
+    Variant of Sawyer Coffee task that is equipped with FT sensors on the gripper
+    and in the environment for improved observations.
+
+    Also makes the task easier by reducing pod holder friction (TODO).
+    """
+    def __init__(
+        self,
+        **kwargs
+    ):
+        # use FT gripper
+        assert "gripper_type" not in kwargs
+        kwargs["gripper_type"] = "TwoFingerGripperWithFT"
+        super().__init__(**kwargs)
+
+    def _load_model(self):
+        """
+        Loads an xml model, puts it in self.model
+        """
+        SawyerEnv._load_model(self)
+        self.mujoco_robot.set_base_xpos([0, 0, 0])
+
+        # load model for table top workspace
+        self.mujoco_arena = TableArena(
+            table_full_size=self.table_full_size, table_friction=self.table_friction
+        )
+        if self.use_indicator_object:
+            self.mujoco_arena.add_pos_indicator(self.indicator_num)
+
+        # The sawyer robot has a pedestal, we want to align it with the table
+        self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
+
+        from robosuite.models.objects import CoffeeMachineBodyObject, CoffeeMachineLidObject, CoffeeMachineBaseObject, CoffeeMachinePodObject, CylinderObject
+        self.coffee_pod = CoffeeMachinePodObject()
+
+        ### TODO: lower friction here... ###
+        from robosuite.models.objects import CoffeeMachineObject2
+        self.coffee_machine = CoffeeMachineObject2(add_cup=True)
+
+        self.mujoco_objects = OrderedDict([
+            ("coffee_machine", self.coffee_machine), 
+            ("coffee_pod", self.coffee_pod),
+        ])
+
+        # reset initial joint positions (gets reset in sim during super() call in _reset_internal)
+        self.init_qpos = np.array([0.00, -1.18, 0.00, 2.18, 0.00, 0.57, 1.5708])
+
+        # task includes arena, robot, and objects of interest
+        self.model = TableTopMergedTask(
+            self.mujoco_arena,
+            self.mujoco_robot,
+            self.mujoco_objects,
+            initializer=self.placement_initializer,
+        )
+        self.model.place_objects()
+
+    def _get_observation(self):
+        """
+        Returns an OrderedDict containing observations [(name_string, np.array), ...].
+
+        Important keys:
+            robot-state: contains robot-centric information.
+            object-state: requires @self.use_object_obs to be True.
+                contains object-centric information.
+            image: requires @self.use_camera_obs to be True.
+                contains a rendered frame from the simulation.
+            depth: requires @self.use_camera_obs and @self.camera_depth to be True.
+                contains a rendered depth map from the simulation
+        """
+        di = super()._get_observation()
+        if self.use_object_obs:
+            # add in sensor measurement
+            di["object-state"] = np.concatenate([
+                di["object-state"],
+                self.get_sensor_measurement("force_ee"),
+                self.get_sensor_measurement("torque_ee"),
+            ])
+        return di
