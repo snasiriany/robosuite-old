@@ -623,3 +623,68 @@ class SawyerCoffeeFT(SawyerCoffee):
                 self.get_sensor_measurement("torque_ee"),
             ])
         return di
+
+class SawyerCoffeeContact(SawyerCoffeeFT):
+    """
+    Variant of Sawyer Coffee task that includes contact information
+    in the observations.
+    """
+    def _get_reference(self):
+        """
+        Sets up references to important components. A reference is typically an
+        index or a list of indices that point to the corresponding elements
+        in a flatten array, which is how MuJoCo stores physical simulation data.
+        """
+        super()._get_reference()
+        self.object_body_ids = {}
+        self.object_body_ids["coffee_pod_holder"] = self.sim.model.body_name2id("coffee_machine_4")
+        self.object_body_ids["coffee_pod"] = self.sim.model.body_name2id("coffee_pod")
+        
+        self.pod_geom_id = self.sim.model.geom_name2id("coffee_pod")
+        pod_holder_geom_names = ["coffee_machine_4_0_{}".format(i) for i in range(64)]
+        self.pod_holder_geom_ids = [self.sim.model.geom_name2id(x) for x in pod_holder_geom_names]
+        self.eef_geom_ids = [self.sim.model.geom_name2id(x) for x in self.gripper.contact_geoms()]
+
+    def _get_observation(self):
+        """
+        Returns an OrderedDict containing observations [(name_string, np.array), ...].
+
+        Important keys:
+            robot-state: contains robot-centric information.
+            object-state: requires @self.use_object_obs to be True.
+                contains object-centric information.
+            image: requires @self.use_camera_obs to be True.
+                contains a rendered frame from the simulation.
+            depth: requires @self.use_camera_obs and @self.camera_depth to be True.
+                contains a rendered depth map from the simulation
+        """
+        di = super()._get_observation()
+        if self.use_object_obs:
+
+            # check contacts
+            robot_and_pod_contact = 0
+            robot_and_pod_holder_contact = 0
+            pod_and_pod_holder_contact = 0
+            for contact in self.sim.data.contact[: self.sim.data.ncon]:
+                if (
+                    ((contact.geom1 in self.eef_geom_ids) and (contact.geom2 == self.pod_geom_id)) or
+                    ((contact.geom2 in self.eef_geom_ids) and (contact.geom1 == self.pod_geom_id))
+                ):
+                    robot_and_pod_contact = 1
+                elif(
+                    ((contact.geom1 in self.eef_geom_ids) and (contact.geom2 in self.pod_holder_geom_ids)) or
+                    ((contact.geom2 in self.eef_geom_ids) and (contact.geom1 in self.pod_holder_geom_ids))
+                ):
+                    robot_and_pod_holder_contact = 1
+                elif(
+                    ((contact.geom1 == self.pod_geom_id) and (contact.geom2 in self.pod_holder_geom_ids)) or
+                    ((contact.geom2 == self.pod_geom_id) and (contact.geom1 in self.pod_holder_geom_ids))
+                ):
+                    pod_and_pod_holder_contact = 1
+
+            # add in contact observations
+            di["object-state"] = np.concatenate([
+                di["object-state"],
+                [robot_and_pod_contact, robot_and_pod_holder_contact, pod_and_pod_holder_contact],
+            ])
+        return di
