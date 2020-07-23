@@ -658,7 +658,7 @@ class SawyerCoffeeContact(SawyerCoffeeFT):
             depth: requires @self.use_camera_obs and @self.camera_depth to be True.
                 contains a rendered depth map from the simulation
         """
-        di = super()._get_observation()
+        di = SawyerCoffee._get_observation(self)
         if self.use_object_obs:
 
             # check contacts
