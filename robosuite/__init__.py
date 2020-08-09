@@ -14,6 +14,10 @@ from robosuite.environments.sawyer_assembly import SawyerAssembly
 from robosuite.environments.sawyer_lego import SawyerLego
 from robosuite.environments.sawyer_clutter import SawyerClutter
 from robosuite.environments.sawyer_playtable import SawyerPT
+from robosuite.environments.sawyer_coffee import SawyerCoffee
+
+# teleoperation environments (same as original versions, with different robot init)
+from robosuite.environments.teleop import *
 
 from robosuite.environments.panda_lift import PandaLift
 from robosuite.environments.panda_stack import PandaStack

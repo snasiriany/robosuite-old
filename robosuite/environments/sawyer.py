@@ -551,3 +551,14 @@ class SawyerEnv(MujocoEnv):
         Returns True if the gripper is in contact with another object.
         """
         return False
+
+    def get_sensor_measurement(self, sensor_name):
+        """
+        Returns array of sensor values
+        Args:
+            sensor_name (string): name of the sensor
+        """
+        sensor_idx = np.sum(
+            self.sim.model.sensor_dim[:self.sim.model.sensor_name2id(sensor_name)])
+        sensor_dim = self.sim.model.sensor_dim[self.sim.model.sensor_name2id(sensor_name)]
+        return np.array(self.sim.data.sensordata[sensor_idx: sensor_idx + sensor_dim])

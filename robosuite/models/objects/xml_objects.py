@@ -2,6 +2,28 @@ import numpy as np
 from robosuite.models.objects import MujocoXMLObject
 from robosuite.utils.mjcf_utils import xml_path_completion, array_to_string
 
+class TestXMLObject(MujocoXMLObject):
+    """
+    Test for composite object.
+    """
+    def __init__(self, joint=None):
+        super().__init__(xml_path_completion("objects/test.xml"), joint=joint)
+
+class CoffeeMachineBodyObject(MujocoXMLObject):
+    def __init__(self, joint=None):
+        super().__init__(xml_path_completion("objects/coffee_body.xml"), joint=joint)
+
+class CoffeeMachineLidObject(MujocoXMLObject):
+    def __init__(self, joint=None):
+        super().__init__(xml_path_completion("objects/coffee_lid.xml"), joint=joint)
+
+class CoffeeMachineBaseObject(MujocoXMLObject):
+    def __init__(self, joint=None):
+        super().__init__(xml_path_completion("objects/coffee_base.xml"), joint=joint)
+
+class CoffeeMachinePodObject(MujocoXMLObject):
+    def __init__(self, joint=None):
+        super().__init__(xml_path_completion("objects/coffee_pod.xml"), joint=joint)
 
 class WoodenPieceObject(MujocoXMLObject):
     """

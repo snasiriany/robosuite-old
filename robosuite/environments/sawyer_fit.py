@@ -7,7 +7,7 @@ import robosuite.utils.transform_utils as T
 import robosuite.utils.env_utils as EU
 from robosuite.environments.sawyer import SawyerEnv
 
-from robosuite.models.arenas import LegoArena
+from robosuite.models.arenas import LegoArena, TableArena
 from robosuite.models.objects import BoxObject, WoodenPieceObject, BoundingObject, BoxPatternObject, BoundingPatternObject, CompositeBoxObject, CompositeObject
 from robosuite.models.robots import Sawyer
 from robosuite.models.tasks import TableTopMergedTask, UniformRandomSampler, SequentialCompositeSampler, RoundRobinSampler
@@ -596,6 +596,211 @@ class SawyerFitPushLongBar(SawyerFit):
         Returns True if task has been completed.
         """
         return False
+
+class SawyerFitPegInHole(SawyerFit):
+    """
+    Task for easy peg in hole where peg starts in hand.
+    """
+    def __init__(
+        self,
+        **kwargs
+    ):
+        assert "gripper_type" not in kwargs
+        kwargs["gripper_type"] = "TwoFingerGripperWithPeg"
+        super().__init__(**kwargs)
+
+    def _get_default_initializer(self):
+        initializer = SequentialCompositeSampler()
+        initializer.sample_on_top(
+            "hole",
+            surface_name="table",
+            x_range=(-0.03, 0.03),
+            y_range=(-0.03, 0.03),
+            z_rotation=0.,
+            ensure_object_boundary_in_range=False,
+        )
+        return initializer
+
+    def _get_placement_initializer_for_eval_mode(self):
+        """
+        Sets a placement initializer that is used to initialize the
+        environment into a fixed set of known task instances.
+        This is for reproducibility in policy evaluation.
+        """
+
+        assert(self.eval_mode)
+
+        ordered_object_names = ["hole"]
+        bounds = self._grid_bounds_for_eval_mode()
+        initializer = SequentialCompositeSampler(round_robin_all_pairs=True)
+
+        for name in ordered_object_names:
+            if self.perturb_evals:
+                # perturbation sizes should be half the grid spacing
+                perturb_sizes = [((b[1] - b[0]) / b[2]) / 2. for b in bounds[name][:3]]
+            else:
+                perturb_sizes = [None for b in bounds[name][:3]]
+
+            grid = bounds_to_grid(bounds[name][:3])
+            sampler = RoundRobinSampler(
+                x_range=grid[0],
+                y_range=grid[1],
+                ensure_object_boundary_in_range=False,
+                z_rotation=grid[2],
+                x_perturb=perturb_sizes[0],
+                y_perturb=perturb_sizes[1],
+                z_rotation_perturb=perturb_sizes[2],
+                z_offset=bounds[name][3],
+            )
+            initializer.append_sampler(name, sampler)
+
+        self.placement_initializer = initializer
+        return initializer
+
+    def _grid_bounds_for_eval_mode(self):
+        """
+        Helper function to get grid bounds of x positions, y positions, 
+        and z-rotations for reproducible evaluations, and number of points
+        per dimension.
+        """
+        ret = {}
+
+        # (low, high, number of grid points for this dimension)
+        hole_x_bounds = (-0.03, 0.03, 3)
+        hole_y_bounds = (-0.03, 0.03, 3)
+        hole_z_rot_bounds = (0., 0., 1)
+        hole_z_offset = 0.
+        ret["hole"] = [hole_x_bounds, hole_y_bounds, hole_z_rot_bounds, hole_z_offset]
+
+        return ret
+
+    def _load_model(self):
+        """
+        Loads an xml model, puts it in self.model
+        """
+        SawyerEnv._load_model(self)
+        self.mujoco_robot.set_base_xpos([0, 0, 0])
+
+        # load model for table top workspace
+        self.mujoco_arena = TableArena(
+            table_full_size=self.table_full_size, table_friction=self.table_friction
+        )
+        if self.use_indicator_object:
+            self.mujoco_arena.add_pos_indicator(self.indicator_num)
+
+        # The sawyer robot has a pedestal, we want to align it with the table
+        self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
+
+        # initialize objects of interest
+        # piece = WoodenPieceObject()
+
+        # # inverse hole will be some random rotation of the wooden piece
+        # self.obj_size = piece.get_bounding_box()
+        # # np.random.shuffle(self.obj_size)
+
+        TOLERANCE = 1.03
+        self.obj_size = np.array([0.0125, 0.0125, 0.03])
+        self.hole_size = TOLERANCE * self.obj_size
+
+        # piece = BoxObject(
+        #     size=self.obj_size,
+        #     rgba=[1, 0, 0, 1],
+        # )
+
+        self.hole = BoundingObject(
+            size=[0.1, 0.1, 0.05],
+            hole_size=self.hole_size, 
+            joint=[],
+            rgba=[0, 0, 1, 1],
+            hole_rgba=[0, 1, 0, 1],
+        )
+
+        self.mujoco_objects = OrderedDict([
+            # ("block", piece), 
+            ("hole", self.hole),
+        ])
+
+        # reset initial joint positions (gets reset in sim during super() call in _reset_internal)
+        # self.init_qpos = np.array([-0.5538, -0.8208, 0.4155, 1.8409, -0.4955, 0.6482, 1.9628])
+        self.init_qpos = np.array([0.00, -1.18, 0.00, 2.18, 0.00, 0.57, 1.5708])
+        self.init_qpos += np.random.randn(self.init_qpos.shape[0]) * 0.02
+
+        # task includes arena, robot, and objects of interest
+        self.model = TableTopMergedTask(
+            self.mujoco_arena,
+            self.mujoco_robot,
+            self.mujoco_objects,
+            initializer=self.placement_initializer,
+        )
+        self.model.place_objects()
+
+    def _get_reference(self):
+        """
+        Sets up references to important components. A reference is typically an
+        index or a list of indices that point to the corresponding elements
+        in a flatten array, which is how MuJoCo stores physical simulation data.
+        """
+        SawyerEnv._get_reference(self)
+        self.object_body_ids = {}
+        self.object_body_ids["hole"]  = self.sim.model.body_name2id("hole")
+        self.object_body_ids["r_gripper_rod"] = self.sim.model.body_name2id("r_gripper_rod")
+
+        self.l_finger_geom_ids = [
+            self.sim.model.geom_name2id(x) for x in self.gripper.left_finger_geoms
+        ]
+        self.r_finger_geom_ids = [
+            self.sim.model.geom_name2id(x) for x in self.gripper.right_finger_geoms
+        ]
+
+    def _pre_action(self, action, policy_step=None):
+        """
+        Last gripper dimensions of action are ignored.
+        """
+        # close gripper
+        action[-self.gripper.dof:] = 1.
+        super()._pre_action(action, policy_step=policy_step)
+
+    def _check_success(self):
+        """
+        Returns True if task has been completed.
+        """
+
+        ### TODO: check if this is accurate ###
+        block_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["r_gripper_rod"]])
+        hole_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["hole"]])
+        result = self.hole.in_box(
+            position=hole_pos, 
+            object_position=block_pos, 
+            # object_size=self.obj_size,
+        )
+        # if (not self.grid.in_grid(self.sim.data.body_xpos[self.sim.model.body_name2id("block")]-[0.16 + self.table_full_size[0] / 2, 0, 0.0], self.obj_size)):
+        #     result = False
+        return result
+
+    def _gripper_visualization(self):
+        """
+        Do any needed visualization here. Overrides superclass implementations.
+        """
+
+        # color the gripper site appropriately based on distance to block
+        if self.gripper_visualization:
+            # get distance to hole
+            dist = np.sum(
+                np.square(
+                    np.array(self.sim.data.body_xpos[self.object_body_ids["hole"]])
+                    - self.sim.data.get_site_xpos("grip_site")
+                )
+            )
+
+            # set RGBA for the EEF site here
+            max_dist = 0.1
+            scaled = (1.0 - min(dist / max_dist, 1.)) ** 15
+            rgba = np.zeros(4)
+            rgba[0] = 1 - scaled
+            rgba[1] = scaled
+            rgba[3] = 0.5
+
+            self.sim.model.site_rgba[self.eef_site_id] = rgba
 
 
 class SawyerThreading(SawyerFit):

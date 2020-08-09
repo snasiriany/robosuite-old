@@ -71,10 +71,26 @@ class TwoFingerGripper(TwoFingerGripperBase):
 
 class TwoFingerGripperWithRod(TwoFingerGripper):
     """
-    Modifies two finger base to only take one action.
+    Puts a rod at the center of the gripper.
     """
     def __init__(self):
         Gripper.__init__(self, xml_path_completion("grippers/two_finger_gripper_with_rod.xml"))
+
+
+class TwoFingerGripperWithPeg(TwoFingerGripper):
+    """
+    Puts a peg at the center of the gripper.
+    """
+    def __init__(self):
+        Gripper.__init__(self, xml_path_completion("grippers/two_finger_gripper_with_peg.xml"))
+
+
+class TwoFingerGripperWithFT(TwoFingerGripper):
+    """
+    Modifies two finger base to include a Force-Torque sensor.
+    """
+    def __init__(self):
+        Gripper.__init__(self, xml_path_completion("grippers/two_finger_gripper_with_ft.xml"))
 
 
 class LeftTwoFingerGripperBase(Gripper):

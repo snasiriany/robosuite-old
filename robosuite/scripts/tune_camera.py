@@ -206,6 +206,7 @@ if __name__ == "__main__":
     env = robosuite.make(
         args.env,
         has_renderer=True,
+        has_offscreen_renderer=False,
         ignore_done=True,
         use_camera_obs=False,
         control_freq=100,

@@ -155,6 +155,15 @@ class MujocoXMLObject(MujocoXML, MujocoObject):
         )
         return string_to_array(horizontal_radius_site.get("pos"))[0]
 
+    def get_full_horizontal_radius(self):
+        horizontal_radius_site = self.worldbody.find(
+            "./body/site[@name='horizontal_radius_site']"
+        )
+        return string_to_array(horizontal_radius_site.get("pos"))
+
+    def get_bounding_box_size(self):
+        return self.get_full_horizontal_radius() - self.get_bottom_offset()
+
     def get_bounding_box(self):
         horizontal_radius_site = self.worldbody.find(
             "./body/site[@name='horizontal_radius_site']"
