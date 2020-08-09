@@ -474,8 +474,8 @@ class SawyerLiftWidePositionInit(SawyerLift):
         x_bounds = (-0.1, 0.1, 5)#(-0.05, 0.15, 5)
         y_bounds = (-0.1, 0.1, 5) # (-0.05, 0.15, 5)
         # extrapolate:
-        # x_bounds = (-0.2, 0.3, 7)
-        # y_bounds = (-0.2, 0.3, 7)
+        x_bounds = (-0.2, 0.2, 7)
+        y_bounds = (-0.2, 0.2, 7)
         # interpolate:
         # x_bounds = (-0.03, 0.13, 4)
         # y_bounds = (-0.03, 0.13, 4)

@@ -23,7 +23,7 @@ class Arena(MujocoXML):
             body.append(
                 new_geom(
                     "sphere",
-                    [0.03],
+                    [0.01],
                     rgba=[1, 0, 0, 0.5],
                     group=1,
                     contype="0",
