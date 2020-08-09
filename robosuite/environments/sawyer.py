@@ -18,7 +18,7 @@ class SawyerEnv(MujocoEnv):
         gripper_type=None,
         gripper_visualization=False,
         use_indicator_object=False,
-        indicator_num=1,
+        indicator_args=None,
         has_renderer=False,
         has_offscreen_renderer=True,
         render_collision_mesh=False,
@@ -93,7 +93,7 @@ class SawyerEnv(MujocoEnv):
         self.gripper_type = gripper_type
         self.gripper_visualization = gripper_visualization
         self.use_indicator_object = use_indicator_object
-        self.indicator_num = indicator_num
+        self.indicator_args = indicator_args
         self.controller_config = controller_config
 
         self.eval_mode = eval_mode
@@ -198,6 +198,7 @@ class SawyerEnv(MujocoEnv):
         ]
 
         if self.use_indicator_object:
+            self.indicator_num = self.indicator_args["num"]
             self._ref_indicator_pos_low = [0] * self.indicator_num
             self._ref_indicator_pos_high = [0] * self.indicator_num
             self._ref_indicator_vel_low = [0] * self.indicator_num
@@ -260,13 +261,15 @@ class SawyerEnv(MujocoEnv):
         self.eef_site_id = self.sim.model.site_name2id("grip_site")
         self.eef_cylinder_id = self.sim.model.site_name2id("grip_site_cylinder")
 
-    def move_indicator(self, pos, indicator_index=0):
+    def move_indicator(self, pos, quat=None, indicator_index=0):
         """
         Sets 3d position of indicator object to @pos.
         """
         if self.use_indicator_object:
             index = self._ref_indicator_pos_low[indicator_index]
             self.sim.data.qpos[index: index + 3] = pos
+            if quat is not None:
+                self.sim.data.qpos[index + 3: index + 7] = T.convert_quat(quat, to="wxyz")
 
     def step(self, action):
         if not self._has_interaction and self.eval_mode:
