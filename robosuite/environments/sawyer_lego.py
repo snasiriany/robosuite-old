@@ -4,7 +4,7 @@ import numpy as np
 from copy import deepcopy
 
 from robosuite.utils.mjcf_utils import bounds_to_grid
-from robosuite.utils.transform_utils import convert_quat
+from robosuite.utils.transform_utils import convert_quat, quat2col
 import robosuite.utils.env_utils as EU
 from robosuite.environments.sawyer import SawyerEnv
 
@@ -403,6 +403,9 @@ class SawyerLego(SawyerEnv):
 
             di["object-state"] = np.concatenate(
                 [block_pos, block_quat, di["gripper_to_block"]]
+            )
+            di["object-state-col"] = np.concatenate(
+                [block_pos, quat2col(block_quat), di["gripper_to_block"]]
             )
 
         return di

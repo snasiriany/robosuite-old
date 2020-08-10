@@ -405,6 +405,9 @@ class SawyerPush(SawyerLift):
             di["object-state"] = np.concatenate(
                 [object_pos, object_quat, di["gripper_to_object"], self.target_pos]
             )
+            di["object-state-col"] = np.concatenate(
+                [object_pos, TU.quat2col(object_quat), di["gripper_to_object"], self.target_pos]
+            )
         return di
 
     def _check_success(self):

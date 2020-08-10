@@ -397,6 +397,7 @@ class SawyerCoffee(SawyerEnv):
 
             # remember the keys to collect into object info
             object_state_keys = []
+            object_state_col_keys = []
 
             # for conversion to relative gripper frame
             gripper_pose = T.pose2mat((di["eef_pos"], di["eef_quat"]))
@@ -412,6 +413,7 @@ class SawyerCoffee(SawyerEnv):
                 )
                 di["{}_pos".format(k)] = body_pos
                 di["{}_quat".format(k)] = body_quat
+                di["{}_quat_col".format(k)] = T.quat2col(body_quat)
 
                 # get relative pose of object in gripper frame
                 body_pose = T.pose2mat((body_pos, body_quat))
@@ -419,17 +421,25 @@ class SawyerCoffee(SawyerEnv):
                 rel_pos, rel_quat = T.mat2pose(rel_pose)
                 di["{}_to_eef_pos".format(k)] = rel_pos
                 di["{}_to_eef_quat".format(k)] = rel_quat
+                di["{}_to_eef_quat_col".format(k)] = T.quat2col(rel_quat)
 
                 object_state_keys.append("{}_pos".format(k))
                 object_state_keys.append("{}_quat".format(k))
                 object_state_keys.append("{}_to_eef_pos".format(k))
                 object_state_keys.append("{}_to_eef_quat".format(k))
 
+                object_state_col_keys.append("{}_pos".format(k))
+                object_state_col_keys.append("{}_quat_col".format(k))
+                object_state_col_keys.append("{}_to_eef_pos".format(k))
+                object_state_col_keys.append("{}_to_eef_quat_col".format(k))
+
             # add hinge angle of lid
             di["hinge_angle"] = np.array([self.sim.data.qpos[self.hinge_qpos_addr]])
             object_state_keys.append("hinge_angle")
+            object_state_col_keys.append("hinge_angle")
 
             di["object-state"] = np.concatenate([di[k] for k in object_state_keys])
+            di["object-state-col"] = np.concatenate([di[k] for k in object_state_col_keys])
 
         return di
 
@@ -622,6 +632,11 @@ class SawyerCoffeeFT(SawyerCoffee):
                 self.get_sensor_measurement("force_ee"),
                 self.get_sensor_measurement("torque_ee"),
             ])
+            di["object-state-col"] = np.concatenate([
+                di["object-state-col"],
+                self.get_sensor_measurement("force_ee"),
+                self.get_sensor_measurement("torque_ee"),
+            ])
         return di
 
 class SawyerCoffeeContact(SawyerCoffeeFT):
@@ -685,6 +700,10 @@ class SawyerCoffeeContact(SawyerCoffeeFT):
             # add in contact observations
             di["object-state"] = np.concatenate([
                 di["object-state"],
+                [robot_and_pod_contact, robot_and_pod_holder_contact, pod_and_pod_holder_contact],
+            ])
+            di["object-state-col"] = np.concatenate([
+                di["object-state-col"],
                 [robot_and_pod_contact, robot_and_pod_holder_contact, pod_and_pod_holder_contact],
             ])
         return di

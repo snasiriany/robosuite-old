@@ -410,6 +410,14 @@ def quat2mat(quaternion):
     )
 
 
+def quat2col(quat):
+    """
+    quaternion to 2 columns of rotation matrix - useful for state representation
+    """
+    mat = quat2mat(quat)
+    return np.concatenate([mat[:, 0], mat[:, 1]])
+
+
 def quat2axisangle(quat):
     """
     Converts (x, y, z, w) quaternion to axis-angle format.

@@ -4,7 +4,7 @@ import numpy as np
 from copy import deepcopy
 
 from robosuite.utils.mjcf_utils import bounds_to_grid
-from robosuite.utils.transform_utils import convert_quat
+from robosuite.utils.transform_utils import convert_quat, quat2col
 import robosuite.utils.env_utils as EU
 from robosuite.environments.sawyer import SawyerEnv
 
