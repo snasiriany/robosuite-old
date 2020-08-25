@@ -707,3 +707,98 @@ class SawyerCoffeeContact(SawyerCoffeeFT):
                 [robot_and_pod_contact, robot_and_pod_holder_contact, pod_and_pod_holder_contact],
             ])
         return di
+
+
+class SawyerCoffeeMinimal(SawyerCoffee):
+    """
+    Observation space is [coffee pod pose in eef frame, coffee pod pose in pod container frame, hinge angle]
+    """
+
+    def _rel_pose_for_key(self, k, world_pose_in_ref):
+        # position and rotation of the relevant bodies
+        body_id = self.object_body_ids[k]
+        body_pos = np.array(self.sim.data.body_xpos[body_id])
+        body_quat = T.convert_quat(
+            np.array(self.sim.data.body_xquat[body_id]), to="xyzw"
+        )
+
+        # get relative pose of object in reference frame
+        body_pose = T.pose2mat((body_pos, body_quat))
+        rel_pose = T.pose_in_A_to_pose_in_B(body_pose, world_pose_in_ref)
+        rel_pos, rel_quat = T.mat2pose(rel_pose)
+        return rel_pos, rel_quat
+
+
+    def _get_observation(self):
+        di = SawyerEnv._get_observation(self)
+        if self.use_object_obs:
+
+            # include coffee pod pose relative to eef and pod pose relative to pod holder
+
+            # for conversion to relative gripper frame
+            gripper_pose = T.pose2mat((di["eef_pos"], di["eef_quat"]))
+            world_pose_in_gripper = T.pose_inv(gripper_pose)
+
+            pod_eef_rel_pos, pod_eef_rel_quat = self._rel_pose_for_key("coffee_pod", world_pose_in_ref=world_pose_in_gripper)
+            pod_eef_rel_quat_col = T.quat2col(pod_eef_rel_quat)
+
+            # for conversion to relative pod holder frame
+            body_id = self.object_body_ids["coffee_pod_holder"]
+            body_pos = np.array(self.sim.data.body_xpos[body_id])
+            body_quat = T.convert_quat(
+                np.array(self.sim.data.body_xquat[body_id]), to="xyzw"
+            )
+            pod_holder_pose = T.pose2mat((body_pos, body_quat))
+            world_pose_in_pod_holder = T.pose_inv(gripper_pose)
+
+            pod_hold_rel_pos, pod_hold_rel_quat = self._rel_pose_for_key("coffee_pod", world_pose_in_ref=world_pose_in_pod_holder)
+            pod_hold_rel_quat_col = T.quat2col(pod_hold_rel_quat)
+
+            # add hinge angle of lid
+            di["hinge_angle"] = np.array([self.sim.data.qpos[self.hinge_qpos_addr]])
+
+            di["object-state"] = np.concatenate([
+                pod_eef_rel_pos,
+                pod_eef_rel_quat,
+                pod_hold_rel_pos,
+                pod_hold_rel_quat,
+                di["hinge_angle"],
+            ])
+
+            di["object-state-col"] = np.concatenate([
+                pod_eef_rel_pos,
+                pod_eef_rel_quat_col,
+                pod_hold_rel_pos,
+                pod_hold_rel_quat_col,
+                di["hinge_angle"],
+            ])
+
+        return di
+
+
+class SawyerCoffeeMinimal2(SawyerCoffee):
+    """
+    Observation space is [coffee pod pose in eef frame, coffee pod pose in eef frame, hinge angle]
+    """
+    def _get_observation(self):
+        di = super()._get_observation()
+        if self.use_object_obs:
+            # replace object-state with a minimal version of super-class object-state (just relative info)
+            di["object-state"] = np.concatenate([
+                di["coffee_pod_to_eef_pos"],
+                di["coffee_pod_to_eef_quat"],
+                di["coffee_pod_holder_to_eef_pos"],
+                di["coffee_pod_holder_to_eef_quat"],
+                di["hinge_angle"],
+            ])
+            
+            di["object-state-col"] = np.concatenate([
+                di["coffee_pod_to_eef_pos"],
+                di["coffee_pod_to_eef_quat_col"],
+                di["coffee_pod_holder_to_eef_pos"],
+                di["coffee_pod_holder_to_eef_quat_col"],
+                di["hinge_angle"],
+            ])
+
+        return di
+
