@@ -749,7 +749,7 @@ class SawyerCoffeeMinimal(SawyerCoffee):
                 np.array(self.sim.data.body_xquat[body_id]), to="xyzw"
             )
             pod_holder_pose = T.pose2mat((body_pos, body_quat))
-            world_pose_in_pod_holder = T.pose_inv(gripper_pose)
+            world_pose_in_pod_holder = T.pose_inv(pod_holder_pose)
 
             pod_hold_rel_pos, pod_hold_rel_quat = self._rel_pose_for_key("coffee_pod", world_pose_in_ref=world_pose_in_pod_holder)
             pod_hold_rel_quat_col = T.quat2col(pod_hold_rel_quat)
