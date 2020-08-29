@@ -711,7 +711,12 @@ class SawyerCoffeeContact(SawyerCoffeeFT):
 
 class SawyerCoffeeMinimal(SawyerCoffee):
     """
-    Observation space is [coffee pod pose in eef frame, coffee pod pose in pod container frame, hinge angle]
+    Observation space is 
+    [
+        coffee pod pose in eef frame, 
+        coffee pod pose in pod container frame, 
+        hinge angle,
+    ]
     """
 
     def _rel_pose_for_key(self, k, world_pose_in_ref):
@@ -778,7 +783,12 @@ class SawyerCoffeeMinimal(SawyerCoffee):
 
 class SawyerCoffeeMinimal2(SawyerCoffee):
     """
-    Observation space is [coffee pod pose in eef frame, coffee pod pose in eef frame, hinge angle]
+    Observation space is 
+    [
+        coffee pod pose in eef frame, 
+        coffee pod pose in eef frame, 
+        hinge angle,
+    ]
     """
     def _get_observation(self):
         di = super()._get_observation()
@@ -800,5 +810,59 @@ class SawyerCoffeeMinimal2(SawyerCoffee):
                 di["hinge_angle"],
             ])
 
+        return di
+
+
+class SawyerCoffeeMinimalContact(SawyerCoffeeMinimal):
+    """
+    Observation space is 
+    [
+        coffee pod pose in eef frame, 
+        coffee pod pose in pod container frame, 
+        hinge angle,
+        contact indicators for pod, pod-holder, and robot pairwise contact,
+    ]
+    """
+    def _get_reference(self):
+        super()._get_reference()        
+        self.pod_geom_id = self.sim.model.geom_name2id("coffee_pod")
+        pod_holder_geom_names = ["coffee_machine_4_0_{}".format(i) for i in range(64)]
+        self.pod_holder_geom_ids = [self.sim.model.geom_name2id(x) for x in pod_holder_geom_names]
+        self.eef_geom_ids = [self.sim.model.geom_name2id(x) for x in self.gripper.contact_geoms()]
+
+    def _get_observation(self):
+        di = super()._get_observation()
+        if self.use_object_obs:
+
+            # check contacts
+            robot_and_pod_contact = 0
+            robot_and_pod_holder_contact = 0
+            pod_and_pod_holder_contact = 0
+            for contact in self.sim.data.contact[: self.sim.data.ncon]:
+                if (
+                    ((contact.geom1 in self.eef_geom_ids) and (contact.geom2 == self.pod_geom_id)) or
+                    ((contact.geom2 in self.eef_geom_ids) and (contact.geom1 == self.pod_geom_id))
+                ):
+                    robot_and_pod_contact = 1
+                elif(
+                    ((contact.geom1 in self.eef_geom_ids) and (contact.geom2 in self.pod_holder_geom_ids)) or
+                    ((contact.geom2 in self.eef_geom_ids) and (contact.geom1 in self.pod_holder_geom_ids))
+                ):
+                    robot_and_pod_holder_contact = 1
+                elif(
+                    ((contact.geom1 == self.pod_geom_id) and (contact.geom2 in self.pod_holder_geom_ids)) or
+                    ((contact.geom2 == self.pod_geom_id) and (contact.geom1 in self.pod_holder_geom_ids))
+                ):
+                    pod_and_pod_holder_contact = 1
+
+            # add in contact observations
+            di["object-state"] = np.concatenate([
+                di["object-state"],
+                [robot_and_pod_contact, robot_and_pod_holder_contact, pod_and_pod_holder_contact],
+            ])
+            di["object-state-col"] = np.concatenate([
+                di["object-state-col"],
+                [robot_and_pod_contact, robot_and_pod_holder_contact, pod_and_pod_holder_contact],
+            ])
         return di
 
