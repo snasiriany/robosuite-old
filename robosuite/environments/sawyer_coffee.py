@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from robosuite.utils.mjcf_utils import xml_path_completion, bounds_to_grid
 import robosuite.utils.transform_utils as T
+import robosuite.utils.control_utils as C
 import robosuite.utils.env_utils as EU
 from robosuite.environments.sawyer import SawyerEnv
 
@@ -326,6 +327,13 @@ class SawyerCoffee(SawyerEnv):
         self.object_body_ids["coffee_pod"] = self.sim.model.body_name2id("coffee_pod")
         self.hinge_qpos_addr = self.sim.model.get_joint_qpos_addr("coffee_machine_1_0")
 
+        # for checking contact (used in reward function, and potentially observation space)
+        self.pod_geom_id = self.sim.model.geom_name2id("coffee_pod")
+        self.lid_geom_id = self.sim.model.geom_name2id("coffee_machine_1")
+        pod_holder_geom_names = ["coffee_machine_4_0_{}".format(i) for i in range(64)]
+        self.pod_holder_geom_ids = [self.sim.model.geom_name2id(x) for x in pod_holder_geom_names]
+        self.eef_geom_ids = [self.sim.model.geom_name2id(x) for x in self.gripper.contact_geoms()]
+
         # size of bounding box for pod holder
         self.pod_holder_size = self.mujoco_objects["coffee_machine"].pod_holder_size
 
@@ -351,13 +359,39 @@ class SawyerCoffee(SawyerEnv):
         """
         Reward function for the task.
 
-        The dense reward has three components.
+        The dense reward is a staged reward that is given based on preconditions.
 
-            Reaching: in [0, 1], to encourage the arm to reach the cube
-            Grasping: in {0, 0.25}, non-zero if arm is grasping the cube
-            Lifting: in {0, 1}, non-zero if arm has lifted the cube
+            (1) pod is not grasped / pod is touching rim
+                
+                - reward = 0
+                
+                - will need to check pod location + contact info
 
-        The sparse reward only consists of the lifting component.
+            (2) pod is grasped
+
+                - reward = 0.1
+
+            (3) pod is in the process of being inserted into the container
+
+                - reward = 0.3
+
+            (4) pod has been inserted into container
+
+                - reward = 0.5
+
+            (5) lid is being closed
+
+                - reward = 0.7
+
+            (6) lid is closed
+
+                - reward = 1.0
+
+        The sparse reward has a few preconditions that are checked.
+
+            (1) coffee container lid is closed
+
+            (2) pod is inserted fully into pod container
 
         Args:
             action (np array): unused for this task
@@ -366,15 +400,11 @@ class SawyerCoffee(SawyerEnv):
             reward (float): the reward
         """
         reward = 0.
-
-        # sparse completion reward
-        if self._check_success()["task"]:
-            reward = 1.0
-
-        # use a shaping reward
         if self.reward_shaping:
-            pass
-
+            # use a shaping reward
+            reward = self._staged_rewards()
+        elif self._check_success()["task"]:
+            reward = 1.0
         return reward
 
     def _get_observation(self):
@@ -459,6 +489,60 @@ class SawyerCoffee(SawyerEnv):
                 break
         return collision
 
+    def _staged_rewards(self):
+        """
+        Helper function to check for various stages of task completion and return a dense
+        reward signal appropriately.
+        """
+
+        # rewards for different stages
+        bad_reward = 0.0
+        pod_is_grasped_reward = 0.1
+        pod_being_inserted_reward = 0.3
+        pos_insertion_reward = 0.5
+        lid_being_closed_reward = 0.7
+        completion_reward = 1.0
+
+        # check for completion
+        completed = self._check_success()["task"]
+        if completed:
+            return completion_reward
+
+        # check for insertion
+        pod_inserted = self._check_pod_inserted()
+        if pod_inserted:
+            # pod has been inserted
+            lid_being_closed = self._check_lid_being_closed()
+            if lid_being_closed:
+                # lid is being closed, and insertion has happened
+                return lid_being_closed_reward
+            return pos_insertion_reward
+
+        # check for insertion progress
+        pod_being_inserted = self._check_pod_being_inserted()
+        if pod_being_inserted:
+            # # pod is being inserted into container
+            # pod_and_pod_holder_contact = self._check_pod_and_pod_holder_contact()
+            # if pod_and_pod_holder_contact:
+            #     # penalize contact between pod and holder during insertion
+            #     return bad_reward
+            return pod_being_inserted_reward
+
+        # check for bad insertion
+        pod_on_rim = self._check_pod_on_rim()
+        if pod_on_rim:
+            # penalize pod contact with rim
+            return bad_reward
+
+        # check for pod grasp
+        pod_is_grasped = self._check_pod_is_grasped()
+        if pod_is_grasped:
+            # pod is grasped
+            return pod_is_grasped_reward
+
+        # default to bad reward
+        return bad_reward
+
     def _check_success(self):
         """
         Returns True if task has been completed.
@@ -500,6 +584,23 @@ class SawyerCoffee(SawyerEnv):
         success["insertion"] = pod_horz_check and pod_z_check
 
         # pod grasp check
+        success["grasp"] = self._check_pod_is_grasped()
+
+        # check is True if the pod is on / near the rim of the pod holder
+        rim_horz_tolerance = 0.03
+        rim_horz_check = (np.linalg.norm(pod_pos[:2] - pod_holder_pos[:2]) < rim_horz_tolerance)
+
+        rim_vert_tolerance = 0.026
+        rim_vert_length = pod_pos[2] - pod_holder_pos[2] - self.pod_holder_size[2]
+        rim_vert_check = (rim_vert_length < rim_vert_tolerance) and (rim_vert_length > 0.)
+        success["rim"] = rim_horz_check and rim_vert_check
+
+        return success
+
+    def _check_pod_is_grasped(self):
+        """
+        check if pod is grasped by robot
+        """
         touch_left_finger = False
         touch_right_finger = False
         pod_geom_id = self.sim.model.geom_name2id("coffee_pod")
@@ -513,18 +614,92 @@ class SawyerCoffee(SawyerEnv):
                 touch_right_finger = True
             if c.geom1 == pod_geom_id and c.geom2 in self.r_finger_geom_ids:
                 touch_right_finger = True
-        success["grasp"] = (touch_left_finger and touch_right_finger)
+        return (touch_left_finger and touch_right_finger)
 
-        # check is True if the pod is on / near the rim of the pod holder
-        rim_horz_tolerance = 0.03
+    def _check_pod_and_pod_holder_contact(self):
+        """
+        check if pod is in contact with the container
+        """
+        pod_and_pod_holder_contact = False
+        for contact in self.sim.data.contact[: self.sim.data.ncon]:
+            if(
+                ((contact.geom1 == self.pod_geom_id) and (contact.geom2 in self.pod_holder_geom_ids)) or
+                ((contact.geom2 == self.pod_geom_id) and (contact.geom1 in self.pod_holder_geom_ids))
+            ):
+                pod_and_pod_holder_contact = True
+                break
+        return pod_and_pod_holder_contact
+
+    def _check_pod_on_rim(self):
+        """
+        check if pod is on pod container rim and not being inserted properly (for reward check)
+        """
+        pod_holder_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["coffee_pod_holder"]])
+        pod_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["coffee_pod"]])
+
+        # check if pod is in contact with the container
+        pod_and_pod_holder_contact = self._check_pod_and_pod_holder_contact()
+
+        # check that pod vertical position is not too low or too high
+        rim_vert_tolerance_1 = 0.022
+        rim_vert_tolerance_2 = 0.026
+        rim_vert_length = pod_pos[2] - pod_holder_pos[2] - self.pod_holder_size[2]
+        rim_vert_check = (rim_vert_length > rim_vert_tolerance_1) and (rim_vert_length < rim_vert_tolerance_2)
+
+        return (pod_and_pod_holder_contact and rim_vert_check)
+
+    def _check_pod_being_inserted(self):
+        """
+        check if robot is in the process of inserting the pod into the container
+        """
+        pod_holder_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["coffee_pod_holder"]])
+        pod_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["coffee_pod"]])
+
+        rim_horz_tolerance = 0.005
         rim_horz_check = (np.linalg.norm(pod_pos[:2] - pod_holder_pos[:2]) < rim_horz_tolerance)
 
-        rim_vert_tolerance = 0.026
+        rim_vert_tolerance = 0.023
         rim_vert_length = pod_pos[2] - pod_holder_pos[2] - self.pod_holder_size[2]
         rim_vert_check = (rim_vert_length < rim_vert_tolerance) and (rim_vert_length > 0.)
-        success["rim"] = rim_horz_check and rim_vert_check
 
-        return success
+        return (rim_horz_check and rim_vert_check)
+
+    def _check_pod_inserted(self):
+        """
+        check if pod has been inserted successfully
+        """
+        pod_holder_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["coffee_pod_holder"]])
+        pod_pos = np.array(self.sim.data.body_xpos[self.object_body_ids["coffee_pod"]])
+
+        # center of pod cannot be more than the difference of radii away from the center of pod holder
+        pod_horz_check = True
+        r_diff = self.pod_holder_size[0] - self.pod_size[0]
+        pod_horz_check = (np.linalg.norm(pod_pos[:2] - pod_holder_pos[:2]) <= r_diff)
+
+        # check that bottom of pod is within some tolerance of bottom of container
+        pod_insertion_z_tolerance = 0.02
+        z_lim_low = pod_holder_pos[2] - self.pod_holder_size[2]
+        pod_z_check = (pod_pos[2] - self.pod_size[2] > z_lim_low) and (pod_pos[2] - self.pod_size[2] < z_lim_low + pod_insertion_z_tolerance)
+        return (pod_horz_check and pod_z_check)
+
+    def _check_lid_being_closed(self):
+        """
+        check if lid is being closed
+        """
+
+        # (check for hinge angle being less than default angle value, 120 degrees)
+        hinge_angle = self.sim.data.qpos[self.hinge_qpos_addr]
+        return (hinge_angle < 2.09)
+
+    # def _check_pod_upright(self):
+    #     """
+    #     check if the pod is upright
+    #     """
+    #     pod_mat_ref = np.eye(3)
+    #     pod_mat = np.array(self.sim.data.body_xmat[self.object_body_ids["coffee_pod"]]).reshape(3, 3)
+    #     orn_error_vec = C.orientation_error(desired=pod_mat, current=pod_mat_ref)
+    #     print("tilt: {}".format(np.linalg.norm(orn_error_vec[:2])))
+    #     return False
 
     def _gripper_visualization(self):
         """
