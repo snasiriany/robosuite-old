@@ -661,7 +661,7 @@ class SawyerCoffee(SawyerEnv):
         rim_vert_tolerance_1 = -0.01
         rim_vert_tolerance_2 = 0.023
         rim_vert_length = pod_pos[2] - pod_holder_pos[2] - self.pod_holder_size[2]
-        rim_vert_check = (rim_vert_length < rim_vert_tolerance) and (rim_vert_length > rim_vert_tolerance_1)
+        rim_vert_check = (rim_vert_length < rim_vert_tolerance_2) and (rim_vert_length > rim_vert_tolerance_1)
 
         return (rim_horz_check and rim_vert_check)
 
