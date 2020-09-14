@@ -292,6 +292,12 @@ class SawyerCoffeeContactTeleop(SawyerCoffeeContact):
         # override initial joint position placement
         self.init_qpos = DEFAULT_JPOS
 
+class SawyerCoffeeContactPenaltyTeleop(SawyerCoffeeContactPenalty):
+    def _load_model(self):
+        super()._load_model()
+        # override initial joint position placement
+        self.init_qpos = DEFAULT_JPOS
+
 class SawyerCoffeeMinimalTeleop(SawyerCoffeeMinimal):
     def _load_model(self):
         super()._load_model()

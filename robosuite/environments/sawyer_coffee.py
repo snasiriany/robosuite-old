@@ -49,6 +49,7 @@ class SawyerCoffee(SawyerEnv):
         camera_segmentation=False,
         eval_mode=False,
         perturb_evals=False,
+        penalize_rim=False,
     ):
         """
         Args:
@@ -135,6 +136,7 @@ class SawyerCoffee(SawyerEnv):
 
         # reward configuration
         self.reward_shaping = reward_shaping
+        self.penalize_rim = penalize_rim # whether to penalize pod touching the rim for dense reward
 
         # object placement initializer
         if placement_initializer is not None:
@@ -529,10 +531,11 @@ class SawyerCoffee(SawyerEnv):
             return pod_being_inserted_reward
 
         # check for bad insertion
-        pod_on_rim = self._check_pod_on_rim()
-        if pod_on_rim:
-            # penalize pod contact with rim
-            return bad_reward
+        if self.penalize_rim:
+            pod_on_rim = self._check_pod_on_rim()
+            if pod_on_rim:
+                # penalize pod contact with rim
+                return bad_reward
 
         # check for pod grasp
         pod_is_grasped = self._check_pod_is_grasped()
@@ -883,6 +886,16 @@ class SawyerCoffeeContact(SawyerCoffeeFT):
                 [robot_and_pod_contact, robot_and_pod_holder_contact, pod_and_pod_holder_contact],
             ])
         return di
+
+
+class SawyerCoffeeContactPenalty(SawyerCoffeeContact):
+    """
+    Reward function penalizes pod contact with rim during insertion.
+    """
+    def __init__(self, **kwargs):
+        assert "penalize_rim" not in kwargs
+        kwargs["penalize_rim"] = True
+        super().__init__(**kwargs)
 
 
 class SawyerCoffeeMinimal(SawyerCoffee):
