@@ -3,7 +3,7 @@ import numpy as np
 from copy import deepcopy
 
 from robosuite.utils.mjcf_utils import bounds_to_grid
-from robosuite.utils.transform_utils import convert_quat
+from robosuite.utils.transform_utils import convert_quat, quat2col
 import robosuite.utils.env_utils as EU
 from robosuite.environments.sawyer import SawyerEnv
 
@@ -33,7 +33,7 @@ class SawyerPole(SawyerEnv):
         placement_initializer=None,
         gripper_visualization=False,
         use_indicator_object=False,
-        indicator_num=1,
+        indicator_args=None,
         has_renderer=False,
         has_offscreen_renderer=True,
         render_collision_mesh=False,
@@ -152,7 +152,7 @@ class SawyerPole(SawyerEnv):
             gripper_type=gripper_type,
             gripper_visualization=gripper_visualization,
             use_indicator_object=use_indicator_object,
-            indicator_num=indicator_num,
+            indicator_args=indicator_args,
             has_renderer=has_renderer,
             has_offscreen_renderer=has_offscreen_renderer,
             render_collision_mesh=render_collision_mesh,
@@ -224,7 +224,7 @@ class SawyerPole(SawyerEnv):
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
-            self.mujoco_arena.add_pos_indicator(self.indicator_num)
+            self.mujoco_arena.add_pos_indicator(**self.indicator_args)
 
         # The sawyer robot has a pedestal, we want to align it with the table
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
@@ -351,6 +351,9 @@ class SawyerPole(SawyerEnv):
 
             di["object-state"] = np.concatenate(
                 [cube_pos, cube_quat, di["gripper_to_cube"]]
+            )
+            di["object-state-col"] = np.concatenate(
+                [cube_pos, quat2col(cube_quat), di["gripper_to_cube"]]
             )
 
         return di

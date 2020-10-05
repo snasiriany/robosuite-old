@@ -32,7 +32,7 @@ class SawyerFit(SawyerEnv):
         placement_initializer=None,
         gripper_visualization=False,
         use_indicator_object=False,
-        indicator_num=1,
+        indicator_args=None,
         has_renderer=False,
         has_offscreen_renderer=True,
         render_collision_mesh=False,
@@ -146,7 +146,7 @@ class SawyerFit(SawyerEnv):
             gripper_type=gripper_type,
             gripper_visualization=gripper_visualization,
             use_indicator_object=use_indicator_object,
-            indicator_num=indicator_num,
+            indicator_args=indicator_args,
             has_renderer=has_renderer,
             has_offscreen_renderer=has_offscreen_renderer,
             render_collision_mesh=render_collision_mesh,
@@ -256,7 +256,7 @@ class SawyerFit(SawyerEnv):
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
-            self.mujoco_arena.add_pos_indicator(self.indicator_num)
+            self.mujoco_arena.add_pos_indicator(**self.indicator_args)
 
         # The sawyer robot has a pedestal, we want to align it with the table
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
@@ -378,6 +378,7 @@ class SawyerFit(SawyerEnv):
 
             # remember the keys to collect into object info
             object_state_keys = []
+            object_state_col_keys = []
 
             # for conversion to relative gripper frame
             gripper_pose = T.pose2mat((di["eef_pos"], di["eef_quat"]))
@@ -392,6 +393,7 @@ class SawyerFit(SawyerEnv):
                 )
                 di["{}_pos".format(k)] = block_pos
                 di["{}_quat".format(k)] = block_quat
+                di["{}_quat_col".format(k)] = T.quat2col(block_quat)
 
                 # get relative pose of object in gripper frame
                 block_pose = T.pose2mat((block_pos, block_quat))
@@ -399,13 +401,20 @@ class SawyerFit(SawyerEnv):
                 rel_pos, rel_quat = T.mat2pose(rel_pose)
                 di["{}_to_eef_pos".format(k)] = rel_pos
                 di["{}_to_eef_quat".format(k)] = rel_quat
+                di["{}_to_eef_quat_col".format(k)] = T.quat2col(rel_quat)
 
                 object_state_keys.append("{}_pos".format(k))
                 object_state_keys.append("{}_quat".format(k))
                 object_state_keys.append("{}_to_eef_pos".format(k))
                 object_state_keys.append("{}_to_eef_quat".format(k))
 
+                object_state_col_keys.append("{}_pos".format(k))
+                object_state_col_keys.append("{}_quat_col".format(k))
+                object_state_col_keys.append("{}_to_eef_pos".format(k))
+                object_state_col_keys.append("{}_to_eef_quat_col".format(k))
+
             di["object-state"] = np.concatenate([di[k] for k in object_state_keys])
+            di["object-state-col"] = np.concatenate([di[k] for k in object_state_col_keys])
 
         return di
 
@@ -525,7 +534,7 @@ class SawyerFitPushLongBar(SawyerFit):
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
-            self.mujoco_arena.add_pos_indicator(self.indicator_num)
+            self.mujoco_arena.add_pos_indicator(**self.indicator_args)
 
         # The sawyer robot has a pedestal, we want to align it with the table
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
@@ -686,7 +695,7 @@ class SawyerFitPegInHole(SawyerFit):
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
-            self.mujoco_arena.add_pos_indicator(self.indicator_num)
+            self.mujoco_arena.add_pos_indicator(**self.indicator_args)
 
         # The sawyer robot has a pedestal, we want to align it with the table
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
@@ -864,7 +873,7 @@ class SawyerThreading(SawyerFit):
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
-            self.mujoco_arena.add_pos_indicator(self.indicator_num)
+            self.mujoco_arena.add_pos_indicator(**self.indicator_args)
 
         # The sawyer robot has a pedestal, we want to align it with the table
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
@@ -1013,7 +1022,7 @@ class SawyerThreadingPrecise(SawyerThreading):
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
-            self.mujoco_arena.add_pos_indicator(self.indicator_num)
+            self.mujoco_arena.add_pos_indicator(**self.indicator_args)
 
         # The sawyer robot has a pedestal, we want to align it with the table
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
@@ -1195,7 +1204,7 @@ class SawyerThreadingRing(SawyerThreadingPrecise):
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
-            self.mujoco_arena.add_pos_indicator(self.indicator_num)
+            self.mujoco_arena.add_pos_indicator(**self.indicator_args)
 
         # The sawyer robot has a pedestal, we want to align it with the table
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])

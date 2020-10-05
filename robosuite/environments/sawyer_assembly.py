@@ -33,7 +33,7 @@ class SawyerAssembly(SawyerEnv):
         placement_initializer=None,
         gripper_visualization=False,
         use_indicator_object=False,
-        indicator_num=1,
+        indicator_args=None,
         has_renderer=False,
         has_offscreen_renderer=True,
         render_collision_mesh=False,
@@ -147,7 +147,7 @@ class SawyerAssembly(SawyerEnv):
             gripper_type=gripper_type,
             gripper_visualization=gripper_visualization,
             use_indicator_object=use_indicator_object,
-            indicator_num=indicator_num,
+            indicator_args=indicator_args,
             has_renderer=has_renderer,
             has_offscreen_renderer=has_offscreen_renderer,
             render_collision_mesh=render_collision_mesh,
@@ -314,7 +314,7 @@ class SawyerAssembly(SawyerEnv):
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
-            self.mujoco_arena.add_pos_indicator(self.indicator_num)
+            self.mujoco_arena.add_pos_indicator(**self.indicator_args)
 
         # The sawyer robot has a pedestal, we want to align it with the table
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
@@ -423,6 +423,7 @@ class SawyerAssembly(SawyerEnv):
 
             # remember the keys to collect into object info
             object_state_keys = []
+            object_state_col_keys = []
 
             # for conversion to relative gripper frame
             gripper_pose = T.pose2mat((di["eef_pos"], di["eef_quat"]))
@@ -437,6 +438,7 @@ class SawyerAssembly(SawyerEnv):
                 )
                 di["{}_pos".format(k)] = block_pos
                 di["{}_quat".format(k)] = block_quat
+                di["{}_quat_col".format(k)] = T.quat2col(block_quat)
 
                 # get relative pose of object in gripper frame
                 block_pose = T.pose2mat((block_pos, block_quat))
@@ -444,13 +446,20 @@ class SawyerAssembly(SawyerEnv):
                 rel_pos, rel_quat = T.mat2pose(rel_pose)
                 di["{}_to_eef_pos".format(k)] = rel_pos
                 di["{}_to_eef_quat".format(k)] = rel_quat
+                di["{}_to_eef_quat_col".format(k)] = T.quat2col(rel_quat)
 
                 object_state_keys.append("{}_pos".format(k))
                 object_state_keys.append("{}_quat".format(k))
                 object_state_keys.append("{}_to_eef_pos".format(k))
                 object_state_keys.append("{}_to_eef_quat".format(k))
 
+                object_state_col_keys.append("{}_pos".format(k))
+                object_state_col_keys.append("{}_quat_col".format(k))
+                object_state_col_keys.append("{}_to_eef_pos".format(k))
+                object_state_col_keys.append("{}_to_eef_quat_col".format(k))
+
             di["object-state"] = np.concatenate([di[k] for k in object_state_keys])
+            di["object-state-col"] = np.concatenate([di[k] for k in object_state_col_keys])
 
         return di
 
@@ -491,3 +500,10 @@ class SawyerAssembly(SawyerEnv):
         """
         pass
 
+    def step(self, action):
+        if not self._has_interaction and self.eval_mode:
+            # this is the first step call of the episode
+            self.placement_initializer.increment_counter()
+        self._has_interaction = True
+        action = np.array([action[0], action[1], action[2], 0., 0., 0., action[3]])
+        return super().step(action)

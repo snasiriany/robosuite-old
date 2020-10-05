@@ -1,7 +1,7 @@
 from collections import OrderedDict
 import numpy as np
 
-from robosuite.utils.transform_utils import convert_quat
+from robosuite.utils.transform_utils import convert_quat, quat2col
 from robosuite.environments.sawyer import SawyerEnv
 
 from robosuite.models.arenas.table_arena import TableArena
@@ -29,7 +29,7 @@ class SawyerStack(SawyerEnv):
         placement_initializer=None,
         gripper_visualization=False,
         use_indicator_object=False,
-        indicator_num=1,
+        indicator_args=None,
         has_renderer=False,
         has_offscreen_renderer=True,
         render_collision_mesh=False,
@@ -148,7 +148,7 @@ class SawyerStack(SawyerEnv):
             gripper_type=gripper_type,
             gripper_visualization=gripper_visualization,
             use_indicator_object=use_indicator_object,
-            indicator_num=indicator_num,
+            indicator_args=indicator_args,
             has_renderer=has_renderer,
             has_offscreen_renderer=has_offscreen_renderer,
             render_collision_mesh=render_collision_mesh,
@@ -198,7 +198,7 @@ class SawyerStack(SawyerEnv):
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
-            self.mujoco_arena.add_pos_indicator(self.indicator_num)
+            self.mujoco_arena.add_pos_indicator(**self.indicator_args)
 
         # The sawyer robot has a pedestal, we want to align it with the table
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
@@ -390,6 +390,18 @@ class SawyerStack(SawyerEnv):
                     cubeA_quat,
                     cubeB_pos,
                     cubeB_quat,
+                    di["gripper_to_cubeA"],
+                    di["gripper_to_cubeB"],
+                    di["cubeA_to_cubeB"],
+                ]
+            )
+
+            di["object-state-col"] = np.concatenate(
+                [
+                    cubeA_pos,
+                    quat2col(cubeA_quat),
+                    cubeB_pos,
+                    quat2col(cubeB_quat),
                     di["gripper_to_cubeA"],
                     di["gripper_to_cubeB"],
                     di["cubeA_to_cubeB"],

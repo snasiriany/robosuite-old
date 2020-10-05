@@ -32,7 +32,7 @@ class SawyerNutAssembly(SawyerEnv):
         nut_type=None,
         gripper_visualization=False,
         use_indicator_object=False,
-        indicator_num=1,
+        indicator_args=None,
         has_renderer=False,
         has_offscreen_renderer=True,
         render_collision_mesh=False,
@@ -180,7 +180,7 @@ class SawyerNutAssembly(SawyerEnv):
             gripper_type=gripper_type,
             gripper_visualization=gripper_visualization,
             use_indicator_object=use_indicator_object,
-            indicator_num=indicator_num,
+            indicator_args=indicator_args,
             has_renderer=has_renderer,
             has_offscreen_renderer=has_offscreen_renderer,
             render_collision_mesh=render_collision_mesh,
@@ -295,7 +295,7 @@ class SawyerNutAssembly(SawyerEnv):
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
-            self.mujoco_arena.add_pos_indicator(self.indicator_num)
+            self.mujoco_arena.add_pos_indicator(**self.indicator_args)
 
         # The sawyer robot has a pedestal, we want to align it with the table
         self.mujoco_arena.set_origin([.5, -0.15, 0])
@@ -529,6 +529,7 @@ class SawyerNutAssembly(SawyerEnv):
 
             # remember the keys to collect into object info
             object_state_keys = []
+            object_state_col_keys = []
 
             # for conversion to relative gripper frame
             gripper_pose = T.pose2mat((di["eef_pos"], di["eef_quat"]))
@@ -547,17 +548,24 @@ class SawyerNutAssembly(SawyerEnv):
                 )
                 di["{}_pos".format(obj_str)] = obj_pos
                 di["{}_quat".format(obj_str)] = obj_quat
+                di["{}_quat_col".format(obj_str)] = T.quat2col(obj_quat)
 
                 object_pose = T.pose2mat((obj_pos, obj_quat))
                 rel_pose = T.pose_in_A_to_pose_in_B(object_pose, world_pose_in_gripper)
                 rel_pos, rel_quat = T.mat2pose(rel_pose)
                 di["{}_to_eef_pos".format(obj_str)] = rel_pos
                 di["{}_to_eef_quat".format(obj_str)] = rel_quat
+                di["{}_to_eef_quat_col".format(obj_str)] = T.quat2col(rel_quat)
 
                 object_state_keys.append("{}_pos".format(obj_str))
                 object_state_keys.append("{}_quat".format(obj_str))
                 object_state_keys.append("{}_to_eef_pos".format(obj_str))
                 object_state_keys.append("{}_to_eef_quat".format(obj_str))
+
+                object_state_col_keys.append("{}_pos".format(obj_str))
+                object_state_col_keys.append("{}_quat_col".format(obj_str))
+                object_state_col_keys.append("{}_to_eef_pos".format(obj_str))
+                object_state_col_keys.append("{}_to_eef_quat_col".format(obj_str))
 
             if self.single_object_mode == 1:
                 # zero out other objs
@@ -569,8 +577,11 @@ class SawyerNutAssembly(SawyerEnv):
                         di["{}_quat".format(obj_str)] *= 0.0
                         di["{}_to_eef_pos".format(obj_str)] *= 0.0
                         di["{}_to_eef_quat".format(obj_str)] *= 0.0
+                        di["{}_quat_col".format(obj_str)] *= 0.0
+                        di["{}_to_eef_quat_col".format(obj_str)] *= 0.0
 
             di["object-state"] = np.concatenate([di[k] for k in object_state_keys])
+            di["object-state-col"] = np.concatenate([di[k] for k in object_state_col_keys])
 
         return di
 
