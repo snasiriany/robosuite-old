@@ -79,6 +79,7 @@ class SawyerPT(SawyerEnv):
 
         if eval_mode:
             self.placement_initializer = self._get_placement_initializer_for_eval_mode()
+            self.placement_initializer = self._get_default_placement_initializer()
         else:
             self.placement_initializer = self._get_default_placement_initializer()
 
@@ -315,17 +316,18 @@ class SawyerPTStack(SawyerPT):
 
     def _get_default_placement_initializer(self):
         initializer = SequentialCompositeSampler()
+        range = 0.1
         initializer.sample_on_top(
             "cube1", "table",
-            x_range=(-0.1, 0.1), y_range=(-0.1, 0.1), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+            x_range=(-range, range), y_range=(-range, range), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
         )
         initializer.sample_on_top(
             "cube2", "table",
-            x_range=(-0.1, 0.1), y_range=(-0.1, 0.1), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+            x_range=(-range, range), y_range=(-range, range), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
         )
         initializer.sample_on_top(
             "plate", "table",
-            x_range=(-0.1, 0.1), y_range=(-0.1, 0.1), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
+            x_range=(-range, range), y_range=(-range, range), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
         )
 
         initializer.hide("cube1_visual")

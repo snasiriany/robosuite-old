@@ -500,3 +500,10 @@ class SawyerAssembly(SawyerEnv):
         """
         pass
 
+    def step(self, action):
+        if not self._has_interaction and self.eval_mode:
+            # this is the first step call of the episode
+            self.placement_initializer.increment_counter()
+        self._has_interaction = True
+        action = np.array([action[0], action[1], action[2], 0., 0., 0., action[3]])
+        return super().step(action)
