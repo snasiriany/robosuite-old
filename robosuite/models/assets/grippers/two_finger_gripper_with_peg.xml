@@ -3,6 +3,11 @@
         <mesh name="electric_gripper_base" file="meshes/two_finger_gripper/electric_gripper_base.STL" />
         <mesh name="standard_narrow" file="meshes/two_finger_gripper/standard_narrow.STL" />
         <mesh name="half_round_tip" file="meshes/two_finger_gripper/half_round_tip.STL" />
+        <!-- NOTE: added these textures for the peg -->
+        <!-- <texture type="cube" file="../textures/light-wood.png" name="peg_tex"/> -->
+        <!-- <texture type="cube" file="../textures/blue-wood.png" name="peg_tex"/> -->
+        <texture type="cube" file="../textures/ceramic.png" name="peg_tex"/>
+        <material name="peg_mat" specular="0.4" shininess="0.1" texrepeat="1 1" texture="peg_tex" texuniform="true"/>
     </asset>
     <actuator>
         <position ctrllimited="true" ctrlrange="-0.0115 0.020833" joint="r_gripper_r_finger_joint" kp="10000" name="gripper_r_gripper_r_finger_joint" forcelimited="true" forcerange="-20 20"/>
@@ -54,7 +59,9 @@
 
             <!-- NOTE: adding a rod -->
             <body name="r_gripper_rod" pos="0 0 0.12">
-                <geom pos="0 0 0" size="0.01 0.01 0.05" type="box" rgba="1 0 0 1" group="1" friction="0.3 0.005 0.0001"/>
+                <!-- <geom pos="0 0 0" size="0.01 0.01 0.05" type="box" rgba="1 0 0 1" group="1" friction="0.3 0.005 0.0001"/> -->
+                <!-- <geom pos="0 0 0" size="0.01 0.01 0.05" type="box" group="1" friction="0.3 0.005 0.0001" material="peg_mat"/> -->
+                <geom pos="0 0 0" size="0.01 0.01 0.05" type="box" rgba="1 0 0 1" group="1" friction="0.3 0.005 0.0001" material="peg_mat"/>
             </body>
         </body>
     </worldbody>

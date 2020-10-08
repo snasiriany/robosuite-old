@@ -3,11 +3,14 @@
     <mesh file="meshes/coffee_lid.stl" name="coffee_lid_mesh" scale="0.01 0.01 0.01"/>
     <texture file="../textures/ceramic.png" name="tex-ceramic"/>
     <material name="ceramic" reflectance="0.5" texrepeat="1 1" texture="tex-ceramic" texuniform="true"/>
+<!--     <texture file="../textures/light-wood.png" name="lid_tex"/>
+    <material name="lid_mat" reflectance="0.5" texrepeat="1 1" texture="lid_tex" texuniform="true"/> -->
   </asset>
   <worldbody>
     <body>
       <body name="collision">
         <geom pos="0 0 0" mesh="coffee_lid_mesh" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="1000" friction="0.95 0.3 0.1" group="1" condim="4" rgba="0.839 0.839 0.839 1" material="ceramic"/>
+<!--         <geom pos="0 0 0" mesh="coffee_lid_mesh" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="1000" friction="0.95 0.3 0.1" group="1" condim="4" material="lid_mat"/> -->
       </body>
       <body name="visual">
         <geom pos="0 0 0" mesh="coffee_lid_mesh" type="mesh" conaffinity="0" contype="0"  group="0" mass="0.0001"/>

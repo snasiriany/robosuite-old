@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 from robosuite.models.base import MujocoXML
-from robosuite.utils.mjcf_utils import string_to_array, array_to_string
+from robosuite.utils.mjcf_utils import string_to_array, array_to_string, CustomMaterial
 
 
 class MujocoObject:
@@ -230,6 +230,7 @@ class MujocoGeneratedObject(MujocoObject):
         joint=None,
         solref=None,
         solimp=None,
+        material=None,
     ):
         """
         Provides default initialization of physical attributes:
@@ -297,6 +298,12 @@ class MujocoGeneratedObject(MujocoObject):
             self.friction = friction
         else:
             self.friction = [friction, 0.005, 0.0001]
+
+        self.material = material
+        if material is not None:
+            # add in custom texture and material
+            self.append_material(material)
+
         self.sanity_check()
 
     def sanity_check(self):
@@ -306,6 +313,24 @@ class MujocoGeneratedObject(MujocoObject):
         For subclasses to inherit from
         """
         pass
+
+    def append_material(self, material):
+        """
+        Adds a new texture / material combination to the assets subtree of this XML
+        Input is expected to be a CustomMaterial object
+        See http://www.mujoco.org/book/XMLreference.html#asset for specific details on attributes expected for
+        Mujoco texture / material tags, respectively
+        Note that the "file" attribute for the "texture" tag should be specified relative to the textures directory
+        located in robosuite/models/assets/textures/
+        Args:
+            material (CustomMaterial): Material to add to this object
+        """
+        # First check if asset attribute exists; if not, define the asset attribute
+        if not hasattr(self, "asset"):
+            self.asset = ET.Element("asset")
+        # Add texture and material inputs to asset
+        self.asset.append(ET.Element("texture", attrib=material.tex_attrib))
+        self.asset.append(ET.Element("material", attrib=material.mat_attrib))
 
     def get_collision_attrib_template(self):
         return {"pos": "0 0 0", "group": "1"}
@@ -321,7 +346,11 @@ class MujocoGeneratedObject(MujocoObject):
         if name is not None:
             template["name"] = name
         template["type"] = ob_type
-        template["rgba"] = array_to_string(self.rgba)
+        if self.material is not None:
+            template["material"] = self.material.mat_attrib["name"]
+        else:
+            template["rgba"] = array_to_string(self.rgba)
+        # template["rgba"] = array_to_string(self.rgba)
         template["size"] = array_to_string(self.size)
         template["density"] = str(self.density)
         template["friction"] = array_to_string(self.friction)
@@ -342,6 +371,10 @@ class MujocoGeneratedObject(MujocoObject):
             main_body.set("name", name)
         template = self.get_visual_attrib_template()
         template["type"] = ob_type
+        if self.material is not None:
+            template["material"] = self.material.mat_attrib["name"]
+        else:
+            template["rgba"] = array_to_string(self.rgba)
         template["rgba"] = array_to_string(self.rgba)
         template["size"] = array_to_string(self.size)
         main_body.append(ET.Element("geom", attrib=template))

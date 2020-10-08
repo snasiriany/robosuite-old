@@ -643,6 +643,27 @@ class CoffeeMachineObject2(CompositeBodyObject):
         # add a rigidly mounted cup to the base
         self.add_cup = add_cup
         if self.add_cup:
+
+            ### uncomment to add texture ###
+
+            # from robosuite.utils.mjcf_utils import CustomMaterial
+            # tex_attrib = {
+            #     "type": "cube",
+            # }
+            # mat_attrib = {
+            #     "texrepeat": "1 1",
+            #     "specular": "0.4",
+            #     "shininess": "0.1",
+            # }
+            # wood = CustomMaterial(
+            #     # texture="WoodLight",
+            #     texture="WoodRed",
+            #     tex_name="lightwood",
+            #     mat_name="lightwood_mat",
+            #     tex_attrib=tex_attrib,
+            #     mat_attrib=mat_attrib,
+            # )
+
             cup = CupObject(
                 outer_cup_radius=0.03,
                 inner_cup_radius=0.025,
@@ -658,6 +679,7 @@ class CoffeeMachineObject2(CompositeBodyObject):
                 rgba=[0.839, 0.839, 0.839, 1],
                 density=1000.,
                 joint=[],
+                # material=wood,
             )
             objects.append(cup)
             object_locations.append([
@@ -923,6 +945,7 @@ class CompositeObject(MujocoGeneratedObject):
         geom_priorities=None,
         joint=None,
         rgba=None,
+        material=None,
         density=100.,
         solref=[0.02, 1.],
         solimp=[0.9, 0.95, 0.001],
@@ -951,7 +974,7 @@ class CompositeObject(MujocoGeneratedObject):
             geom_rgbas (list): list of geom colors ordered the same as @geom_locations. If 
                 passed as an argument, @rgba is ignored.
         """
-        super().__init__(joint=joint, rgba=rgba)
+        super().__init__(joint=joint, rgba=rgba, material=material)
 
         self.total_size = np.array(total_size)
         self.geom_types = np.array(geom_types)
@@ -1055,9 +1078,10 @@ class CompositeObject(MujocoGeneratedObject):
                     size=size, 
                     pos=pos, 
                     name=geom_name,
-                    rgba=geom_rgba,
+                    rgba=geom_rgba if self.material is None else None,
                     geom_type=geom_type,
                     friction=geom_friction,
+                    material=self.material.mat_attrib["name"] if self.material is not None else None,
                     # priority=geom_priority,
                     **geom_properties,
                 )
@@ -1138,6 +1162,7 @@ class CompositeBoxObject(CompositeObject):
         geom_frictions=None,
         joint=None,
         rgba=None,
+        material=None,
         density=100.,
         solref=[0.02, 1.],
         solimp=[0.9, 0.95, 0.001],
@@ -1154,6 +1179,7 @@ class CompositeBoxObject(CompositeObject):
             geom_frictions=geom_frictions,
             joint=joint,
             rgba=rgba,
+            material=material,
             density=density,
             solref=solref,
             solimp=solimp,
@@ -1175,6 +1201,7 @@ class BoundingObject(CompositeBoxObject):
         hole_rgba=None,
         joint=None,
         rgba=None,
+        material=None,
         density=100.,
         solref=[0.02, 1.],
         solimp=[0.9, 0.95, 0.001],
@@ -1204,6 +1231,7 @@ class BoundingObject(CompositeBoxObject):
             total_size=size,
             joint=joint, 
             rgba=rgba,
+            material=material,
             density=density,
             solref=solref,
             solimp=solimp,
@@ -1295,6 +1323,7 @@ class BoxPatternObject(CompositeBoxObject):
         pattern,
         joint=None,
         rgba=None,
+        material=None,
         density=100.,
         solref=[0.02, 1.],
         solimp=[0.9, 0.95, 0.001],
@@ -1321,6 +1350,7 @@ class BoxPatternObject(CompositeBoxObject):
             total_size=total_size, 
             joint=joint, 
             rgba=rgba,
+            material=material,
             density=density,
             solref=solref,
             solimp=solimp,
@@ -1379,6 +1409,7 @@ class BoundingPatternObject(BoundingObject, BoxPatternObject):
         pattern_rgba=None,
         joint=None,
         rgba=None,
+        material=None,
         density=100.,
         solref=[0.02, 1.],
         solimp=[0.9, 0.95, 0.001],
@@ -1418,6 +1449,7 @@ class BoundingPatternObject(BoundingObject, BoxPatternObject):
             total_size=size, 
             joint=joint, 
             rgba=rgba,
+            material=material,
             density=density,
             solref=solref,
             solimp=solimp,
@@ -1477,6 +1509,7 @@ class HollowCylinderObject(CompositeObject):
         ngeoms=8,
         joint=None,
         rgba=None,
+        material=None,
         density=100.,
         make_half=False,
         friction=None,
@@ -1525,6 +1558,7 @@ class HollowCylinderObject(CompositeObject):
             geom_priorities=geom_args["geom_priorities"],
             joint=joint,
             rgba=rgba,
+            material=material,
             density=density,
             solref=[0.02, 1.],
             solimp=[0.998, 0.998, 0.001],
@@ -1600,6 +1634,7 @@ class CupObject(CompositeBodyObject):
         handle_ngeoms=8,
         joint=None,
         rgba=None,
+        material=None,
         density=100.,
         friction=None,
         priority=None,
@@ -1637,6 +1672,7 @@ class CupObject(CompositeBodyObject):
             height=self.cup_height,
             ngeoms=self.n,
             rgba=rgba,
+            material=material,
             density=density,
             joint=[],
             friction=friction,
@@ -1650,6 +1686,7 @@ class CupObject(CompositeBodyObject):
         self.cup_base = CylinderObject(
             size=[self.cup_body.int_r, self.cup_base_height],
             rgba=rgba,
+            material=material,
             density=density,
             solref=[0.02, 1.],
             solimp=[0.998, 0.998, 0.001],
@@ -1667,6 +1704,7 @@ class CupObject(CompositeBodyObject):
                 height=self.handle_thickness,
                 ngeoms=self.handle_ngeoms,
                 rgba=rgba,
+                material=material,
                 density=density,
                 joint=[],
                 make_half=True,
@@ -1716,6 +1754,7 @@ class BoxObject(MujocoGeneratedObject):
         joint=None,
         solref=None,
         solimp=None,
+        material=None,
         horizontal_radius_offset=0.,
     ):
         size = _get_size(size,
@@ -1739,6 +1778,7 @@ class BoxObject(MujocoGeneratedObject):
             joint=joint,
             solref=solref,
             solimp=solimp,
+            material=material,
         )
 
     def sanity_check(self):
@@ -1783,6 +1823,7 @@ class CylinderObject(MujocoGeneratedObject):
         joint=None,
         solref=None,
         solimp=None,
+        material=None,
     ):
         size = _get_size(size,
                          size_max,
@@ -1804,6 +1845,7 @@ class CylinderObject(MujocoGeneratedObject):
             joint=joint,
             solref=solref,
             solimp=solimp,
+            material=material,
         )
 
     def sanity_check(self):
@@ -1848,6 +1890,7 @@ class BallObject(MujocoGeneratedObject):
         joint=None,
         solref=None,
         solimp=None,
+        material=None,
     ):
         size = _get_size(size,
                          size_max,
@@ -1869,6 +1912,7 @@ class BallObject(MujocoGeneratedObject):
             joint=joint,
             solref=solref,
             solimp=solimp,
+            material=material,
         )
 
     def sanity_check(self):
@@ -1913,6 +1957,7 @@ class CapsuleObject(MujocoGeneratedObject):
         joint=None,
         solref=None,
         solimp=None,
+        material=None,
     ):
         size = _get_size(size,
                          size_max,
@@ -1934,6 +1979,7 @@ class CapsuleObject(MujocoGeneratedObject):
             joint=joint,
             solref=solref,
             solimp=solimp,
+            material=material,
         )
 
     def sanity_check(self):

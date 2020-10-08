@@ -10,6 +10,37 @@ RED = [1, 0, 0, 1]
 GREEN = [0, 1, 0, 1]
 BLUE = [0, 0, 1, 1]
 
+TEXTURES = {
+    "WoodRed": "red-wood.png",
+    "WoodGreen": "green-wood.png",
+    "WoodBlue": "blue-wood.png",
+    "WoodLight": "light-wood.png",
+    "WoodDark": "dark-wood.png",
+    "WoodTiles": "wood-tiles.png",
+    "WoodPanels": "wood-varnished-panels.png",
+    "WoodgrainGray": "gray-woodgrain.png",
+    "PlasterCream": "cream-plaster.png",
+    "PlasterPink": "pink-plaster.png",
+    "PlasterYellow": "yellow-plaster.png",
+    "PlasterGray": "gray-plaster.png",
+    "PlasterWhite": "white-plaster.png",
+    "BricksWhite": "white-bricks.png",
+    "Metal": "metal.png",
+    "SteelBrushed": "steel-brushed.png",
+    "SteelScratched": "steel-scratched.png",
+    "Brass": "brass-ambra.png",
+    "Bread": "bread.png",
+    "Can": "can.png",
+    "Ceramic": "ceramic.png",
+    "Cereal": "cereal.png",
+    "Clay": "clay.png",
+    "Dirt": "dirt.png",
+    "Glass": "glass.png",
+    "FeltGray": "gray-felt.png",
+    "Lemon": "lemon.png",
+}
+
+ALL_TEXTURES = TEXTURES.keys()
 
 def xml_path_completion(xml_path):
     """
@@ -116,6 +147,10 @@ def new_geom(geom_type, size, pos=(0, 0, 0), rgba=RED, group=0, **kwargs):
         kwargs["rgba"] = array_to_string(rgba)
     kwargs["group"] = str(group)
     kwargs["pos"] = array_to_string(pos)
+    # Loop through all remaining attributes and pop any that are None
+    for k, v in kwargs.copy().items():
+        if v is None:
+            kwargs.pop(k)
     element = ET.Element("geom", attrib=kwargs)
     return element
 
@@ -225,6 +260,79 @@ def bounds_to_grid(bounds):
     return final_grid_dims
 
 
+class CustomMaterial(object):
+    """
+    Simple class to instantiate the necessary parameters to define an appropriate texture / material combo
+    Instantiates a nested dict holding necessary components for procedurally generating a texture / material combo
+    Please see http://www.mujoco.org/book/XMLreference.html#asset for specific details on
+        attributes expected for Mujoco texture / material tags, respectively
+    Note that the values in @tex_attrib and @mat_attrib can be in string or array / numerical form.
+    Args:
+        texture (str or 4-array): Name of texture file to be imported. If a string, should be part of ALL_TEXTURES
+            If texture is a 4-array, then this argument will be interpreted as an rgba tuple value and a template
+            png will be procedurally generated during object instantiation, with any additional
+            texture / material attributes specified.
+            Note the RGBA values are expected to be floats between 0 and 1
+        tex_name (str): Name to reference the imported texture
+        mat_name (str): Name to reference the imported material
+        tex_attrib (dict): Any other optional mujoco texture specifications.
+        mat_attrib (dict): Any other optional mujoco material specifications.
+    Raises:
+        AssertionError: [Invalid texture]
+    """
 
+    def __init__(
+            self,
+            texture,
+            tex_name,
+            mat_name,
+            tex_attrib=None,
+            mat_attrib=None,
+    ):
+        # Check if the desired texture is an rgba value
+        if type(texture) is str:
+            default = False
+            # Verify that requested texture is valid
+            assert texture in ALL_TEXTURES, "Error: Requested invalid texture. Got {}. Valid options are:\n{}".format(
+                texture, ALL_TEXTURES)
+        else:
+            default = True
+            # This is an rgba value and a default texture is desired; make sure length of rgba array is 4
+            assert len(texture) == 4, "Error: Requested default texture. Got array of length {}. Expected rgba array " \
+                                      "of length 4.".format(len(texture))
+
+        # Setup the texture and material attributes
+        self.tex_attrib = {} if tex_attrib is None else tex_attrib.copy()
+        self.mat_attrib = {} if mat_attrib is None else mat_attrib.copy()
+
+        # Add in name values
+        self.tex_attrib["name"] = tex_name
+        self.mat_attrib["name"] = mat_name
+        self.mat_attrib["texture"] = tex_name
+
+        # Loop through all attributes and convert all non-string values into strings
+        for attrib in (self.tex_attrib, self.mat_attrib):
+            for k, v in attrib.items():
+                if type(v) is not str:
+                    if isinstance(v, Iterable):
+                        attrib[k] = array_to_string(v)
+                    else:
+                        attrib[k] = str(v)
+
+        # Handle default and non-default cases separately for linking texture patch file locations
+        if not default:
+            # Add in the filepath to texture patch
+            self.tex_attrib["file"] = xml_path_completion("textures/" + TEXTURES[texture])
+        else:
+            # Create a texture patch
+            tex = Image.new('RGBA', (100, 100), tuple((np.array(texture)*255).astype('int')))
+            # Create temp directory if it does not exist
+            save_dir = "/tmp/robosuite_temp_tex"
+            Path(save_dir).mkdir(parents=True, exist_ok=True)
+            # Save this texture patch to the temp directory on disk (MacOS / Linux)
+            fpath = save_dir + "/{}.png".format(tex_name)
+            tex.save(fpath, "PNG")
+            # Link this texture file to the default texture dict
+            self.tex_attrib["file"] = fpath
 
 

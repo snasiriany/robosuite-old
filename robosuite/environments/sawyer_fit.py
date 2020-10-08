@@ -711,10 +711,24 @@ class SawyerFitPegInHole(SawyerFit):
         self.obj_size = np.array([0.0125, 0.0125, 0.03])
         self.hole_size = TOLERANCE * self.obj_size
 
-        # piece = BoxObject(
-        #     size=self.obj_size,
-        #     rgba=[1, 0, 0, 1],
-        # )
+        from robosuite.utils.mjcf_utils import CustomMaterial
+        tex_attrib = {
+            "type": "cube",
+        }
+        mat_attrib = {
+            "texrepeat": "1 1",
+            "specular": "0.4",
+            "shininess": "0.1",
+        }
+        wood = CustomMaterial(
+            # texture="WoodPanels",
+            # texture="WoodRed",
+            texture="WoodLight",
+            tex_name="lightwood",
+            mat_name="lightwood_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
 
         self.hole = BoundingObject(
             size=[0.1, 0.1, 0.05],
@@ -722,6 +736,7 @@ class SawyerFitPegInHole(SawyerFit):
             joint=[],
             rgba=[0, 0, 1, 1],
             hole_rgba=[0, 1, 0, 1],
+            material=wood,
         )
 
         self.mujoco_objects = OrderedDict([
@@ -810,6 +825,18 @@ class SawyerFitPegInHole(SawyerFit):
             rgba[3] = 0.5
 
             self.sim.model.site_rgba[self.eef_site_id] = rgba
+
+
+class SawyerFitPegInHolePos(SawyerFitPegInHole):
+    """
+    Task for easy peg in hole where peg starts in hand, and only OSC_POS control is allowed
+    """
+    def __init__(
+        self,
+        **kwargs
+    ):
+        kwargs["controller_config"]["type"] = "EE_POS"
+        super().__init__(**kwargs)
 
 
 class SawyerThreading(SawyerFit):
