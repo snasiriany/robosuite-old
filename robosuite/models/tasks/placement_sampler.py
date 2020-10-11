@@ -105,13 +105,14 @@ class UniformRandomSampler(ObjectPositionSampler):
 
         return [np.cos(rot_angle / 2), 0, 0, np.sin(rot_angle / 2)]
 
-    def sample(self, fixtures=None, return_placements=False, reference_object_name=None, sample_on_top=False):
+    def sample(self, fixtures=None, return_placements=False, reference_object_name=None, sample_on_top=False, allow_contact=False):
         """
         Uniformly sample on a surface.
         :param fixtures: current placements in the scene
         :param return_placements: if return the current placements in the scene
         :param reference_object_name: sample placement relative to an object (needs to be one of the fixtures)
         :param sample_on_top: sample on top of the reference object if True
+        :param allow_contact: allow objects to contact each other
         :return: placements position and orientation (optionally the current placements)
         """
         pos_arr = []
@@ -142,7 +143,7 @@ class UniformRandomSampler(ObjectPositionSampler):
                 # objects cannot overlap
                 location_valid = True
                 for (x, y, z), other_obj_mjcf in placed_objects.values():
-                    if (
+                    if not allow_contact and (
                         np.linalg.norm([object_x - x, object_y - y], 2)
                         <= other_obj_mjcf.get_horizontal_radius() + horizontal_radius
                     ) and (
@@ -402,7 +403,7 @@ class SequentialCompositeSampler(ObjectPositionSampler):
         )
         self.append_sampler(object_name=object_name, sampler=sampler)
 
-    def _sample_on_top(self, object_name, surface_name, sampler):
+    def _sample_on_top(self, object_name, surface_name, sampler, **kwargs):
         if surface_name == 'table':
             self.append_sampler(object_name=object_name, sampler=sampler)
         else:
@@ -411,7 +412,8 @@ class SequentialCompositeSampler(ObjectPositionSampler):
                 object_name=object_name,
                 sampler=sampler,
                 reference_object_name=surface_name,
-                sample_on_top=True
+                sample_on_top=True,
+                **kwargs
             )
 
     def sample_on_top(
@@ -422,7 +424,8 @@ class SequentialCompositeSampler(ObjectPositionSampler):
             y_range=None,
             z_rotation=None,
             z_offset=0.0,
-            ensure_object_boundary_in_range=True
+            ensure_object_boundary_in_range=True,
+            allow_contact=False
     ):
         """Sample placement on top of a surface object"""
         sampler = UniformRandomSampler(
@@ -432,7 +435,7 @@ class SequentialCompositeSampler(ObjectPositionSampler):
             z_offset=z_offset,
             ensure_object_boundary_in_range=ensure_object_boundary_in_range
         )
-        return self._sample_on_top(object_name, surface_name, sampler)
+        return self._sample_on_top(object_name, surface_name, sampler, allow_contact=allow_contact)
 
     def sample_on_top_square_grid(
             self,
