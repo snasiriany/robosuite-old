@@ -677,6 +677,8 @@ class SawyerFitPegInHole(SawyerFit):
         # (low, high, number of grid points for this dimension)
         hole_x_bounds = (-0.03, 0.03, 3)
         hole_y_bounds = (-0.03, 0.03, 3)
+        # hole_x_bounds = (-0.1, 0.1, 3)
+        # hole_y_bounds = (-0.1, 0.1, 3)
         hole_z_rot_bounds = (0., 0., 1)
         hole_z_offset = 0.
         ret["hole"] = [hole_x_bounds, hole_y_bounds, hole_z_rot_bounds, hole_z_offset]
@@ -1263,6 +1265,35 @@ class SawyerThreadingRing(SawyerThreadingPrecise):
             None,
         ]
 
+        # texture
+        from robosuite.utils.mjcf_utils import CustomMaterial
+        tex_attrib = {
+            "type": "cube",
+        }
+        mat_attrib = {
+            "texrepeat": "1 1",
+            "specular": "0.4",
+            "shininess": "0.1",
+        }
+        wood = CustomMaterial(
+            # texture="WoodPanels",
+            # texture="WoodRed",
+            texture="WoodLight",
+            tex_name="lightwood",
+            mat_name="lightwood_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
+        wood2 = CustomMaterial(
+            # texture="WoodPanels",
+            # texture="WoodRed",
+            texture="WoodDark",
+            tex_name="darkwood",
+            mat_name="darkwood_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
+
         piece = CompositeBoxObject(
             total_size=[0.02, 0.08, 0.02],
             geom_locations=geom_locations,
@@ -1273,6 +1304,7 @@ class SawyerThreadingRing(SawyerThreadingPrecise):
             rgba=None,
             density=100,
             # density=0.1,
+            material=wood2,
         )
 
         ### small thin ring with tripod ###
@@ -1364,6 +1396,7 @@ class SawyerThreadingRing(SawyerThreadingPrecise):
             density=100.,
             solref=solref,
             solimp=solimp,
+            material=wood,
             **geom_args,
         )
         self.hole_size = np.array(self.hole.total_size)
@@ -1415,6 +1448,29 @@ class SawyerCircus(SawyerThreadingRing):
         # kwargs["use_post"] = False
         super().__init__(**kwargs)
 
+    def _get_default_initializer(self):
+        initializer = SequentialCompositeSampler()
+
+        # NOTE: this z-offset accounts for small errors with placement (problem for slide joints)
+        initializer.sample_on_top(
+            "hole",
+            surface_name="table",
+            x_range=(0., 0.15),
+            y_range=(-0.15, -0.15),
+            z_rotation=(np.pi / 3., np.pi / 3.),
+            z_offset=0.001, 
+            ensure_object_boundary_in_range=False,
+        )
+        initializer.sample_on_top(
+            "block",
+            surface_name="table",
+            x_range=[-0.2, -0.05],
+            y_range=[0.2, 0.2],
+            z_rotation=(-np.pi / 2.),
+            ensure_object_boundary_in_range=False,
+        )
+        return initializer
+
     def _grid_bounds_for_eval_mode(self):
         """
         Helper function to get grid bounds of x positions, y positions, 
@@ -1424,11 +1480,17 @@ class SawyerCircus(SawyerThreadingRing):
         ret = super()._grid_bounds_for_eval_mode()
 
         # (low, high, number of grid points for this dimension)
-        hole_x_bounds = (0.0, 0.15, 9)
+        hole_x_bounds = (0.0, 0.15, 3)
         hole_y_bounds = (-0.15, -0.15, 1)
         hole_z_rot_bounds = (np.pi / 3., np.pi / 3., 1)
         hole_z_offset = 0.001
         ret["hole"] = [hole_x_bounds, hole_y_bounds, hole_z_rot_bounds, hole_z_offset]
+
+        block_x_bounds = (-0.2, -0.05, 3)
+        block_y_bounds = (0.2, 0.2, 1)
+        block_z_rot_bounds = (-np.pi / 2., -np.pi / 2., 1)
+        block_z_offset = 0.
+        ret["block"] = [block_x_bounds, block_y_bounds, block_z_rot_bounds, block_z_offset]
 
         return ret
 
