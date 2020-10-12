@@ -8,7 +8,7 @@ import robosuite.utils.transform_utils as T
 import robosuite.utils.env_utils as EU
 from robosuite.environments.sawyer import SawyerEnv
 
-from robosuite.models.arenas import LegoArena
+from robosuite.models.arenas import LegoArena, TableArena
 from robosuite.models.objects import BoxPatternObject
 from robosuite.models.robots import Sawyer
 from robosuite.models.tasks import TableTopMergedTask, UniformRandomSampler, SequentialCompositeSampler, RoundRobinSampler
@@ -314,7 +314,7 @@ class SawyerAssembly(SawyerEnv):
         self.mujoco_robot.set_base_xpos([0, 0, 0])
 
         # load model for table top workspace
-        self.mujoco_arena = LegoArena(
+        self.mujoco_arena = TableArena(
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
@@ -689,7 +689,7 @@ class SawyerTool(SawyerEnv):
         initializer.sample_on_top(
             "plate",
             surface_name="table",
-            x_range=[-0.2, 0.1],
+            x_range=[-0.2, 0.0],
             y_range=[-0.3, 0.3],
             z_rotation=0., # None
             ensure_object_boundary_in_range=False,
@@ -697,7 +697,7 @@ class SawyerTool(SawyerEnv):
         initializer.sample_on_top(
             "cube",
             surface_name="table",
-            x_range=[0.18, 0.2],
+            x_range=[0.18, 0.20],
             y_range=[-0.2, 0.2],
             z_rotation=0., # None
             z_offset=-0.015,
@@ -712,36 +712,33 @@ class SawyerTool(SawyerEnv):
         environment into a fixed set of known task instances.
         This is for reproducibility in policy evaluation.
         """
-
         assert(self.eval_mode)
 
-        # ordered_object_names = ["tool", "plate", "cube"]
-        # bounds = self._grid_bounds_for_eval_mode()
-        # initializer = SequentialCompositeSampler(round_robin_all_pairs=True)
-        #
-        # for name in ordered_object_names:
-        #     if self.perturb_evals:
-        #         # perturbation sizes should be half the grid spacing
-        #         perturb_sizes = [((b[1] - b[0]) / b[2]) / 2. for b in bounds[name]]
-        #     else:
-        #         perturb_sizes = [None for b in bounds[name]]
-        #
-        #     grid = bounds_to_grid(bounds[name])
-        #     sampler = RoundRobinSampler(
-        #         x_range=grid[0],
-        #         y_range=grid[1],
-        #         ensure_object_boundary_in_range=False,
-        #         z_rotation=grid[2],
-        #         x_perturb=perturb_sizes[0],
-        #         y_perturb=perturb_sizes[1],
-        #         z_rotation_perturb=perturb_sizes[2],
-        #     )
-        #     initializer.append_sampler(name, sampler)
+        #ordered_object_names = ["tool", "plate", "cube"]
+        #bounds = self._grid_bounds_for_eval_mode()
+        #initializer = SequentialCompositeSampler(round_robin_all_pairs=True)
 
-        initializer = self._get_default_initializer()
+        #for name in ordered_object_names:
+        #    if self.perturb_evals:
+        #        # perturbation sizes should be half the grid spacing
+        #        perturb_sizes = [((b[1] - b[0]) / b[2]) / 2. for b in bounds[name]]
+        #    else:
+        #        perturb_sizes = [None for b in bounds[name]]
 
-        self.placement_initializer = initializer
-        return initializer
+        #    grid = bounds_to_grid(bounds[name])
+        #    sampler = RoundRobinSampler(
+        #        x_range=grid[0],
+        #        y_range=grid[1],
+        #        ensure_object_boundary_in_range=False,
+        #        z_rotation=grid[2],
+        #        x_perturb=perturb_sizes[0],
+        #        y_perturb=perturb_sizes[1],
+        #        z_rotation_perturb=perturb_sizes[2],
+        #    )
+        #    initializer.append_sampler(name, sampler)
+
+        #self.placement_initializer = initializer
+        return self._get_default_initializer()
 
     def _grid_bounds_for_eval_mode(self):
         """
@@ -752,19 +749,19 @@ class SawyerTool(SawyerEnv):
         ret = {}
 
         # (low, high, number of grid points for this dimension)
-        x_range = (-0.15, 0.1, 3),
-        y_range = (-0.2, 0.2, 3),
-        z_rot_bounds = (0., 0., 1)
-        ret["tool"] = [x_range, y_range, plate_z_rot_bounds]
+        plate_x_bounds = (0.25, 0.25, 1)
+        plate_y_bounds = (0.25, 0.25, 1)
+        plate_z_rot_bounds = (0., 0., 1)
+        ret["tool"] = [plate_x_bounds, plate_y_bounds, plate_z_rot_bounds]
 
-        block1_x_bounds = (-0.2, 0.1, 3)
-        block1_y_bounds = (-0.3, 0.3, 3)
-        block1_z_rot_bounds = (0., 0., 1)
+        block1_x_bounds = (-0.3, 0.2, 3)
+        block1_y_bounds = (-0.3, 0.2, 3)
+        block1_z_rot_bounds = (0., 2. * np.pi, 3)
         ret["plate"] = [block1_x_bounds, block1_y_bounds, block1_z_rot_bounds]
 
-        block2_x_bounds = (0.18, 0.2, 3)
-        block2_y_bounds = (-0.2, 0.2, 3)
-        block2_z_rot_bounds = (0., 0., 1)
+        block2_x_bounds = (-0.3, 0.2, 3)
+        block2_y_bounds = (-0.3, 0.2, 3)
+        block2_z_rot_bounds = (0., 2. * np.pi, 3)
         ret["cube"] = [block2_x_bounds, block2_y_bounds, block2_z_rot_bounds]
 
         return ret
@@ -774,10 +771,14 @@ class SawyerTool(SawyerEnv):
         Samples patterns to make useful pieces.
         """
         cube = [[[1]]]
-        plate = [[[1] * 3 for _ in range(3)]]
+        plate = [[[1] * 4 for _ in range(4)]]
+        for i in range(1, 3):
+            for j in range(1, 3):
+                plate[0][i][j] = 0
 
-        tool_base = np.zeros((2, 10, 8)) # z, x, y
+        tool_base = np.zeros((2, 15, 8)) # z, x, y
         tool_base[:, :, 0] = 1
+        tool_base[:, :, 1] = 1
         tool_base[:, -1, :] = 1
         tool = tool_base.tolist()
 
@@ -791,7 +792,7 @@ class SawyerTool(SawyerEnv):
         self.mujoco_robot.set_base_xpos([0, 0, 0])
 
         # load model for table top workspace
-        self.mujoco_arena = LegoArena(
+        self.mujoco_arena = TableArena(
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
@@ -973,7 +974,7 @@ class SawyerTool(SawyerEnv):
         """
         cube_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id("cube")])
         plate_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id("plate")])
-        if np.linalg.norm(cube_pos[:2] - plate_pos[:2]) < 0.1 and cube_pos[2] - plate_pos[2] > 0.01:
+        if np.linalg.norm(cube_pos[:2] - plate_pos[:2]) < 0.03 and (cube_pos[2] - plate_pos[2] < 0.01):
             return True
         return False
         # cnt = 0
