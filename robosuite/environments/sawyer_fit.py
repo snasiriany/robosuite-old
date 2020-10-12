@@ -620,11 +620,19 @@ class SawyerFitPegInHole(SawyerFit):
 
     def _get_default_initializer(self):
         initializer = SequentialCompositeSampler()
+        # initializer.sample_on_top(
+        #     "hole",
+        #     surface_name="table",
+        #     x_range=(-0.03, 0.03),
+        #     y_range=(-0.03, 0.03),
+        #     z_rotation=0.,
+        #     ensure_object_boundary_in_range=False,
+        # )
         initializer.sample_on_top(
             "hole",
             surface_name="table",
-            x_range=(-0.03, 0.03),
-            y_range=(-0.03, 0.03),
+            x_range=(-0.15, 0.15),
+            y_range=(-0.15, 0.15),
             z_rotation=0.,
             ensure_object_boundary_in_range=False,
         )
@@ -675,10 +683,10 @@ class SawyerFitPegInHole(SawyerFit):
         ret = {}
 
         # (low, high, number of grid points for this dimension)
-        hole_x_bounds = (-0.03, 0.03, 3)
-        hole_y_bounds = (-0.03, 0.03, 3)
-        # hole_x_bounds = (-0.1, 0.1, 3)
-        # hole_y_bounds = (-0.1, 0.1, 3)
+        # hole_x_bounds = (-0.03, 0.03, 3)
+        # hole_y_bounds = (-0.03, 0.03, 3)
+        hole_x_bounds = (-0.15, 0.15, 3)
+        hole_y_bounds = (-0.15, 0.15, 3)
         hole_z_rot_bounds = (0., 0., 1)
         hole_z_offset = 0.
         ret["hole"] = [hole_x_bounds, hole_y_bounds, hole_z_rot_bounds, hole_z_offset]
@@ -1455,18 +1463,24 @@ class SawyerCircus(SawyerThreadingRing):
         initializer.sample_on_top(
             "hole",
             surface_name="table",
-            x_range=(0., 0.15),
-            y_range=(-0.15, -0.15),
-            z_rotation=(np.pi / 3., np.pi / 3.),
+            # x_range=(0., 0.15),
+            # y_range=(-0.15, -0.15),
+            # z_rotation=(np.pi / 3., np.pi / 3.),
+            x_range=(-0.1, 0.15),
+            y_range=(-0.2, -0.1),
+            z_rotation=(np.pi / 6., np.pi / 2.),
             z_offset=0.001, 
             ensure_object_boundary_in_range=False,
         )
         initializer.sample_on_top(
             "block",
             surface_name="table",
+            # x_range=[-0.2, -0.05],
+            # y_range=[0.2, 0.2],
+            # z_rotation=(-np.pi / 2.),
             x_range=[-0.2, -0.05],
-            y_range=[0.2, 0.2],
-            z_rotation=(-np.pi / 2.),
+            y_range=[0.15, 0.25],
+            z_rotation=(-2. * np.pi / 3., -np.pi / 3.),
             ensure_object_boundary_in_range=False,
         )
         return initializer
@@ -1480,15 +1494,21 @@ class SawyerCircus(SawyerThreadingRing):
         ret = super()._grid_bounds_for_eval_mode()
 
         # (low, high, number of grid points for this dimension)
-        hole_x_bounds = (0.0, 0.15, 3)
-        hole_y_bounds = (-0.15, -0.15, 1)
-        hole_z_rot_bounds = (np.pi / 3., np.pi / 3., 1)
+        # hole_x_bounds = (0.0, 0.15, 3)
+        hole_x_bounds = (-0.1, 0.15, 3)
+        # hole_y_bounds = (-0.15, -0.15, 1)
+        hole_y_bounds = (-0.2, -0.1, 3)
+        # hole_z_rot_bounds = (np.pi / 3., np.pi / 3., 1)
+        hole_z_rot_bounds = (np.pi / 6., np.pi / 2., 3)
         hole_z_offset = 0.001
         ret["hole"] = [hole_x_bounds, hole_y_bounds, hole_z_rot_bounds, hole_z_offset]
 
         block_x_bounds = (-0.2, -0.05, 3)
-        block_y_bounds = (0.2, 0.2, 1)
-        block_z_rot_bounds = (-np.pi / 2., -np.pi / 2., 1)
+        # block_y_bounds = (0.2, 0.2, 1)
+        # block_y_bounds = (0.2, 0.2, 1)
+        block_y_bounds = (0.15, 0.25, 3)
+        # block_z_rot_bounds = (-np.pi / 2., -np.pi / 2., 1)
+        block_z_rot_bounds = (-2. * np.pi / 3., -np.pi / 3., 3)
         block_z_offset = 0.
         ret["block"] = [block_x_bounds, block_y_bounds, block_z_rot_bounds, block_z_offset]
 
