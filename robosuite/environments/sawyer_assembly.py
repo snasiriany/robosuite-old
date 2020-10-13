@@ -825,12 +825,39 @@ class SawyerTool(SawyerEnv):
             tex_attrib=tex_attrib,
             mat_attrib=mat_attrib,
         )
+        woodTiles = CustomMaterial(
+            # texture="WoodPanels",
+            texture="WoodTiles",
+            # texture="WoodLight",
+            tex_name="woodtiles",
+            mat_name="woodtiles_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
         woodRed = CustomMaterial(
             # texture="WoodPanels",
             texture="WoodRed",
             # texture="WoodLight",
             tex_name="redwood",
             mat_name="redwood_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
+        woodBlue = CustomMaterial(
+            # texture="WoodPanels",
+            texture="WoodBlue",
+            # texture="WoodLight",
+            tex_name="bluewood",
+            mat_name="bluewood_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
+        woodGreen = CustomMaterial(
+            # texture="WoodPanels",
+            texture="WoodGreen",
+            # texture="WoodLight",
+            tex_name="greenwood",
+            mat_name="greenwood_mat",
             tex_attrib=tex_attrib,
             mat_attrib=mat_attrib,
         )
@@ -856,7 +883,7 @@ class SawyerTool(SawyerEnv):
             pattern=cube,
             # rgba=[0, 1, 0, 1],
             solref=[0.001, 1],
-            material=woodLight#woodGreen
+            material=woodBlue#woodGreen
         )
         plate = BoxPatternObject(
             unit_size=[self.plate_size] * 3,
