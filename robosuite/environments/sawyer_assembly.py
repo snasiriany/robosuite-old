@@ -807,21 +807,63 @@ class SawyerTool(SawyerEnv):
         self.cube_size = 0.02
         self.plate_size = 0.015
 
+        # Customize texture
+        from robosuite.utils.mjcf_utils import CustomMaterial
+        tex_attrib = {
+            "type": "cube",
+        }
+        mat_attrib = {
+            "texrepeat": "1 1",
+            "specular": "0.4",
+            "shininess": "0.1",
+        }
+        woodLight = CustomMaterial(
+            texture="WoodLight",
+            tex_name="lightwood",
+            mat_name="lightwood_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
+        woodRed = CustomMaterial(
+            # texture="WoodPanels",
+            texture="WoodRed",
+            # texture="WoodLight",
+            tex_name="redwood",
+            mat_name="redwood_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
+        woodPanels = CustomMaterial(
+            texture="WoodPanels",
+            # texture="WoodRed",
+            # texture="WoodLight",
+            tex_name="panelwood",
+            mat_name="panelwood_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
+
         tool = BoxPatternObject(
             unit_size=[self.tool_size / 2] * 3,
             pattern=tool,
-            rgba=[1, 0, 0, 1],
+            # rgba=[1, 0, 0, 1],
+            solref=[0.001, 1],
+            material=woodRed
         )
         cube = BoxPatternObject(
             unit_size=[self.cube_size] * 3,
             pattern=cube,
-            rgba=[0, 1, 0, 1],
+            # rgba=[0, 1, 0, 1],
+            solref=[0.001, 1],
+            material=woodLight#woodGreen
         )
         plate = BoxPatternObject(
             unit_size=[self.plate_size] * 3,
             pattern=plate,
             joint=[],
-            rgba=[0, 0, 1, 1],
+            # rgba=[0, 0, 1, 1],
+            solref=[0.001, 1],
+            material=woodPanels
         )
         self.mujoco_objects = OrderedDict([
             ("tool", tool),
