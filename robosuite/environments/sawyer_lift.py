@@ -3,7 +3,7 @@ import numpy as np
 from copy import deepcopy
 
 from robosuite.utils.mjcf_utils import bounds_to_grid
-from robosuite.utils.transform_utils import convert_quat, quat2col
+from robosuite.utils.transform_utils import convert_quat
 import robosuite.utils.env_utils as EU
 from robosuite.environments.sawyer import SawyerEnv
 
@@ -34,7 +34,7 @@ class SawyerLift(SawyerEnv):
         placement_initializer=None,
         gripper_visualization=False,
         use_indicator_object=False,
-        indicator_args=None,
+        indicator_num=1,
         has_renderer=False,
         has_offscreen_renderer=True,
         render_collision_mesh=False,
@@ -50,7 +50,6 @@ class SawyerLift(SawyerEnv):
         camera_segmentation=False,
         eval_mode=False,
         perturb_evals=False,
-        **kwargs
     ):
         """
         Args:
@@ -143,10 +142,10 @@ class SawyerLift(SawyerEnv):
             self.placement_initializer = placement_initializer
         else:
             self.placement_initializer = UniformRandomSampler(
-                x_range=[-0.03, 0.03],
-                y_range=[-0.03, 0.03],
+                x_range=[-0.1, 0.1],
+                y_range=[-0.1, 0.1],
                 ensure_object_boundary_in_range=False,
-                z_rotation=None,
+                z_rotation=[0, np.pi / 2 - 0.1],
             )
 
         super().__init__(
@@ -154,7 +153,7 @@ class SawyerLift(SawyerEnv):
             gripper_type=gripper_type,
             gripper_visualization=gripper_visualization,
             use_indicator_object=use_indicator_object,
-            indicator_args=indicator_args,
+            indicator_num=indicator_num,
             has_renderer=has_renderer,
             has_offscreen_renderer=has_offscreen_renderer,
             render_collision_mesh=render_collision_mesh,
@@ -182,13 +181,26 @@ class SawyerLift(SawyerEnv):
         assert(self.eval_mode)
 
         bounds = list(self._grid_bounds_for_eval_mode())
-        if self.perturb_evals:
+        print("BOUNDS", bounds)
+        
+        num_b = len(bounds[0])
+        #print(num_b)
+        #if self.perturb_evals:
             # perturbation sizes should be half the grid spacing
-            perturb_sizes = [((b[1] - b[0]) / b[2]) / 2. for b in bounds]
-        else:
-            perturb_sizes = [None for b in bounds]
+            #perturb_sizes = [((b[0][1] - b[0][0]) / b[0][2]) / 2. for b in bounds]
+        #else:
+        perturb_sizes = [None for b in bounds]
+        #print("perturb_sizes", perturb_sizes)
 
-        object_grid = bounds_to_grid(bounds)
+        object_grid = []
+        tmp_grid = []
+        for b in range(num_b):
+            tmp_grid.append(deepcopy(bounds_to_grid([bounds[0][b], bounds[1][b], bounds[2][b]])))
+        
+        object_grid.append(np.concatenate([tmp_grid[i][0] for i in range(num_b)]))
+        object_grid.append(np.concatenate([tmp_grid[i][1] for i in range(num_b)]))
+        object_grid.append(np.concatenate([tmp_grid[i][2] for i in range(num_b)]))
+
         self.placement_initializer = RoundRobinSampler(
             x_range=object_grid[0],
             y_range=object_grid[1],
@@ -202,16 +214,16 @@ class SawyerLift(SawyerEnv):
 
     def _grid_bounds_for_eval_mode(self):
         """
-        Helper function to get grid bounds of x positions, y positions, 
+        Helper function to get grid bounds of x positions, y positions,
         and z-rotations for reproducible evaluations, and number of points
         per dimension.
         """
 
         # (low, high, number of grid points for this dimension)
-        x_bounds = (-0.03, 0.03, 3)
-        y_bounds = (-0.03, 0.03, 3)
-        # z_rot_bounds = (1., 1., 1)
-        z_rot_bounds = (0., 2. * np.pi, 3)
+        x_bounds = [(0.1, 0.2, 2), (-0.2, 0.1, 4), (-0.2, 0.1, 4)]
+        y_bounds = [(-0.2, 0.2, 5), (-0.2, -0.1, 2), (0.1, 0.2, 2)]
+        z_rot_bounds = [(0., 0., 1), (0., 0., 1), (0., 0., 1)]
+
         return x_bounds, y_bounds, z_rot_bounds
 
     def _load_model(self):
@@ -226,7 +238,7 @@ class SawyerLift(SawyerEnv):
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
-            self.mujoco_arena.add_pos_indicator(**self.indicator_args)
+            self.mujoco_arena.add_pos_indicator(self.indicator_num)
 
         # The sawyer robot has a pedestal, we want to align it with the table
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
@@ -234,7 +246,7 @@ class SawyerLift(SawyerEnv):
         # initialize objects of interest
         cube = BoxObject(
             size_min=[0.020, 0.020, 0.020],  # [0.015, 0.015, 0.015],
-            size_max=[0.020, 0.020, 0.020],  # [0.018, 0.018, 0.018])
+            size_max=[0.022, 0.022, 0.022],  # [0.018, 0.018, 0.018])
             rgba=[1, 0, 0, 1],
         )
         self.mujoco_objects = OrderedDict([("cube", cube)])
@@ -351,9 +363,6 @@ class SawyerLift(SawyerEnv):
             di["object-state"] = np.concatenate(
                 [cube_pos, cube_quat, di["gripper_to_cube"]]
             )
-            di["object-state-col"] = np.concatenate(
-                [cube_pos, quat2col(cube_quat), di["gripper_to_cube"]]
-            )
 
         return di
 
@@ -423,8 +432,8 @@ class SawyerLiftPosition(SawyerLift):
     ):
         assert("placement_initializer" not in kwargs)
         kwargs["placement_initializer"] = UniformRandomSampler(
-            x_range=[-0.03, 0.03],
-            y_range=[-0.03, 0.03],
+            x_range=[-0.1, 0.1],
+            y_range=[-0.1, 0.1],
             ensure_object_boundary_in_range=False,
             z_rotation=0.
         )
@@ -440,9 +449,12 @@ class SawyerLiftPosition(SawyerLift):
         """
 
         # (low, high, number of grid points for this dimension)
-        x_bounds = (-0.03, 0.03, 3)
-        y_bounds = (-0.03, 0.03, 3)
-        z_rot_bounds = (0., 0., 1)
+        x_bounds = [(0.1, 0.2, 2), (-0.2, 0.1, 4), (-0.2, 0.1, 4)]
+        y_bounds = [(-0.2, 0.2, 5), (-0.2, -0.1, 2), (0.1, 0.2, 2)]
+        z_rot_bounds = [(0., 0., 1), (0., 0., 1), (0., 0., 1)]
+        #x_bounds = [(-0.1, 0.1, 3)]
+        #y_bounds = [(-0.1, 0.1, 3)]
+        #z_rot_bounds = [(0., 0., 1)]
         return x_bounds, y_bounds, z_rot_bounds
 
 
@@ -474,14 +486,11 @@ class SawyerLiftWidePositionInit(SawyerLift):
         """
 
         # (low, high, number of grid points for this dimension)
-        x_bounds = (-0.1, 0.1, 5)#(-0.05, 0.15, 5)
-        y_bounds = (-0.1, 0.1, 5) # (-0.05, 0.15, 5)
+        x_bounds = (-0.1, 0.1, 5)
+        y_bounds = (-0.1, 0.1, 5)
         # extrapolate:
-        x_bounds = (-0.2, 0.2, 7)
-        y_bounds = (-0.2, 0.2, 7)
-        # interpolate:
-        # x_bounds = (-0.03, 0.13, 4)
-        # y_bounds = (-0.03, 0.13, 4)
+        # x_bounds = (0.1, 0.2, 4)
+        # y_bounds = (0.1, 0.2, 4)
         z_rot_bounds = (0., 0., 1)
         return x_bounds, y_bounds, z_rot_bounds
 
@@ -652,7 +661,7 @@ class SawyerLiftPositionTarget(SawyerLift):
 
         self._target_name = 'cube_target'
         self._object_name = 'cube'
-        self.interactive_objects = OrderedDict()
+        self.interactive_objects = {}
 
         assert 'placement_initializer' not in kwargs
         kwargs['placement_initializer'] = self._get_default_initializer()
@@ -725,7 +734,7 @@ class SawyerLiftPositionTarget(SawyerLift):
             table_full_size=self.table_full_size, table_friction=self.table_friction
         )
         if self.use_indicator_object:
-            self.mujoco_arena.add_pos_indicator(**self.indicator_args)
+            self.mujoco_arena.add_pos_indicator(self.indicator_num)
 
         # The sawyer robot has a pedestal, we want to align it with the table
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
@@ -740,10 +749,6 @@ class SawyerLiftPositionTarget(SawyerLift):
             initializer=self.placement_initializer,
         )
         self.model.place_objects()
-
-    @property
-    def task_object_names(self):
-        return ["cube"]
 
     def _get_reference(self):
         super()._get_reference()
@@ -951,10 +956,6 @@ class SawyerPositionTargetPress(SawyerLiftPositionTarget):
         self.placement_initializer = initializer
         return initializer
 
-    @property
-    def task_object_names(self):
-        return ["cube", "button"]
-
     def _load_objects(self):
         mujoco_objects, visual_objects = super()._load_objects()
         slide_joint = dict(
@@ -968,7 +969,7 @@ class SawyerPositionTargetPress(SawyerLiftPositionTarget):
             damping="1"
         )
         mujoco_objects["button"] = CylinderObject(rgba=(0, 0, 1, 1), size=[0.03, 0.01], joint=[slide_joint])
-        # mujoco_objects["cube2"] = BoxObject(rgba=(0, 1, 0, 1), size=(0.02, 0.02, 0.02))
+        # mujoco_objects["cube2"] = BoxObject(size=(0.02, 0.02, 0.02))
         # mujoco_objects["button"] = CylinderObject(rgba=(0, 0, 1, 1), size=[0.03, 0.01])
         return mujoco_objects, visual_objects
 
@@ -1061,32 +1062,6 @@ class SawyerPositionTargetPress(SawyerLiftPositionTarget):
         self.interactive_objects['button'].activate()
         return ret
 
-    def _get_observation(self):
-        """
-        Returns an OrderedDict containing observations [(name_string, np.array), ...].
-        """
-        di = super()._get_observation()
-
-        gripper_site_pos = np.array(self.sim.data.site_xpos[self.eef_site_id])
-        cube_pos = np.array(self.sim.data.body_xpos[self.cube_body_id])
-        cube_quat = np.array(self.sim.data.body_xquat[self.cube_body_id])
-        gripper_to_cube = gripper_site_pos - cube_pos
-
-        button_pos = np.array(self.sim.data.body_xpos[self.sim.model.body_name2id("button")])
-        button_quat = np.array(self.sim.data.body_xquat[self.sim.model.body_name2id("button")])
-        gripper_to_button = gripper_site_pos - button_pos
-        ostate = np.hstack([o.flat_state for o in self.interactive_objects.values()])
-        di["object-state"] = np.concatenate(
-            [cube_pos, cube_quat, gripper_to_cube, button_pos, button_quat, gripper_to_button, ostate]
-        )
-
-        di["object-goal-state"] = np.concatenate(
-            [cube_pos, button_pos, ostate]
-        )
-
-        di["task_id"] = np.array([1.0])
-        return di
-
     def _get_goal(self):
         """
         Get goal observation by moving object to the target, get obs, and move back.
@@ -1113,20 +1088,8 @@ class SawyerPositionTargetPress(SawyerLiftPositionTarget):
 
 
 class SawyerPositionPress(SawyerPositionTargetPress):
-    def _get_observation(self):
-        di = super()._get_observation()
-        di["task_id"] = np.array([0.0])
-        return di
-
     def _set_state_to_goal(self):
         self.interactive_objects['button'].activate()
-
-    def _reset_internal(self):
-        super()._reset_internal()
-        pos = self.sim.data.body_xpos[self.cube_body_id]
-        quat = self.sim.data.body_xquat[self.cube_body_id]
-        EU.set_body_pose(self.sim, self._target_name, pos=pos, quat=quat)
-        self.sim.forward()
 
     def _check_success(self):
         state_name = self.interactive_objects['button'].state_name
@@ -1134,11 +1097,6 @@ class SawyerPositionPress(SawyerPositionTargetPress):
 
 
 class SawyerPositionTarget(SawyerPositionTargetPress):
-    def _get_observation(self):
-        di = super()._get_observation()
-        di["task_id"] = np.array([1.0])
-        return di
-
     def _set_state_to_goal(self):
         SawyerLiftPositionTarget._set_state_to_goal(self)
 

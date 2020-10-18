@@ -78,7 +78,6 @@ class SawyerPT(SawyerEnv):
         self._eval_mode_perturb_range = eval_mode_perturb_range
 
         if eval_mode:
-            self.placement_initializer = self._get_placement_initializer_for_eval_mode()
             self.placement_initializer = self._get_default_placement_initializer()
         else:
             self.placement_initializer = self._get_default_placement_initializer()
@@ -125,16 +124,16 @@ class SawyerPT(SawyerEnv):
             rel_pos = gripper_site_pos - pos
             object_state.extend([pos, quat, rel_pos])
             object_only_state.extend([pos])
-            object_target.extend([pos] if obj_name == self.source_name else [np.zeros_like(pos)])
+            # object_target.extend([pos] if obj_name == self.source_name else [np.zeros_like(pos)])
 
         object_state = np.concatenate(object_state, axis=0)
         object_only_state = np.concatenate(object_only_state, axis=0)
-        object_target = np.concatenate(object_target, axis=0)
+        # object_target = np.concatenate(object_target, axis=0)
         ostate = [o.flat_state for o in self.interactive_objects.values()]
 
         di["object-state"] = np.concatenate([object_state] + ostate)
         di["object-goal-state"] = np.concatenate([object_only_state] + ostate)
-        di["object-goal-single"] = object_target
+        # di["object-goal-single"] = object_target
         di["task_spec"] = self.task_spec
         return di
 
@@ -242,7 +241,8 @@ class SawyerPT(SawyerEnv):
     def step(self, action):
         if not self._has_interaction:
             # this is the first step call of the episode
-            self.placement_initializer.increment_counter()
+            self.placement_initializer[0].increment_counter()
+            self.placement_initializer[1].increment_counter()
         self._has_interaction = True
         for _, o in self.interactive_objects.items():
             o.step(sim_step=self.timestep)
@@ -295,45 +295,87 @@ class SawyerPT(SawyerEnv):
 
 
 class SawyerPTStack(SawyerPT):
+
     def _load_objects(self):
         # setup objects and initializers
         mujoco_objects = OrderedDict()
         visual_objects = OrderedDict()
 
         mujoco_objects["cube1"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 1), density=1000, friction=1)
-        mujoco_objects["cube2"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 1), density=1000, friction=1)
+        #mujoco_objects["cube2"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 1), density=1000, friction=1)
         mujoco_objects["plate"] = BoxObject(size=(0.03, 0.03, 0.01), rgba=(0, 1, 0, 1), density=1000, friction=1)
 
         visual_objects["cube1_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(1, 0, 0, 0.3))
-        visual_objects["cube2_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 0.3))
+        #visual_objects["cube2_visual"] = BoxObject(size=(0.02, 0.02, 0.02), rgba=(0, 0, 1, 0.3))
         visual_objects["plate_visual"] = BoxObject(size=(0.03, 0.03, 0.01), rgba=(0, 1, 0, 0.3))
         # target visual object
         return mujoco_objects, visual_objects
 
     @property
     def task_object_names(self):
-        return ["cube1", "cube2", "plate"]
+        return ["cube1", "plate"]
 
     def _get_default_placement_initializer(self):
         initializer = SequentialCompositeSampler()
-        range = 0.1
         initializer.sample_on_top(
             "cube1", "table",
-            x_range=(-range, range), y_range=(-range, range), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
-        )
-        initializer.sample_on_top(
-            "cube2", "table",
-            x_range=(-range, range), y_range=(-range, range), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+            x_range=(-0.1, 0.1), y_range=(-0.15, -0.05), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
         )
         initializer.sample_on_top(
             "plate", "table",
-            x_range=(-range, range), y_range=(-range, range), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
+            x_range=(-0.1, 0.1), y_range=(0.05, 0.15), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
+        )
+        initializer.hide("cube1_visual")
+        initializer.hide("plate_visual")
+
+        initializer2 = SequentialCompositeSampler()
+        initializer2.sample_on_top(
+            "cube1", "table",
+            x_range=(-0.1, 0.1), y_range=(0.05, 0.15), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+        )
+        initializer2.sample_on_top(
+            "plate", "table",
+            x_range=(-0.1, 0.1), y_range=(-0.15, -0.05), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
+        )
+        initializer2.hide("cube1_visual")
+        initializer2.hide("plate_visual")
+
+        return [initializer, initializer2]
+
+    def _get_placement_initializer_for_eval_mode(self):
+        initializer = SequentialCompositeSampler()
+        initializer.sample_on_top(
+            "cube1", "table",
+            x_range=(-0.1, 0.1), y_range=(-0.25, -0.15), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+            # x_range=(-0.1, 0.1), y_range=(-0.15, -0.05), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+        )
+        initializer.sample_on_top(
+            "plate", "table",
+            x_range=(-0.1, 0.1), y_range=(0.15, 0.25), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
+            # x_range=(-0.1, 0.1), y_range=(0.05, 0.15), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
         )
 
         initializer.hide("cube1_visual")
-        initializer.hide("cube2_visual")
         initializer.hide("plate_visual")
-        return initializer
+
+        
+        initializer2 = SequentialCompositeSampler()
+        initializer2.sample_on_top(
+            "cube1", "table",
+                x_range=(-0.1, 0.1), y_range=(0.15, 0.25), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+                # x_range=(-0.1, 0.1), y_range=(0.05, 0.15), z_rotation=(0.0, 0.0), ensure_object_boundary_in_range=False
+                )
+        initializer2.sample_on_top(
+            "plate", "table",
+                x_range=(-0.1, 0.1), y_range=(-0.25, -0.15), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
+                # x_range=(-0.1, 0.1), y_range=(-0.15, -0.05), z_rotation=(0.0, 0.0),  ensure_object_boundary_in_range=False
+                )
+
+        initializer2.hide("cube1_visual")
+        initializer2.hide("plate_visual")
+
+        return [initializer, initializer2]
+
 
     @property
     def task_id(self):
@@ -353,7 +395,7 @@ class SawyerPTStack(SawyerPT):
         self.sim.forward()
 
     def _check_success(self):
-        return EU.is_stable_placement(
+        success1 = EU.is_stable_placement(
             self.sim,
             self.model.mujoco_objects["cube1"],
             self.sim.model.body_name2id("cube1"),
@@ -361,6 +403,15 @@ class SawyerPTStack(SawyerPT):
             self.sim.model.body_name2id("plate"),
         )
 
+        #success2 = EU.is_stable_placement(
+        #    self.sim,
+        #    self.model.mujoco_objects["cube1"],
+        #    self.sim.model.body_name2id("cube1"),
+        #    self.model.mujoco_objects["cube2"],
+        #    self.sim.model.body_name2id("cube2"),
+        #)
+
+        return success1# and success2
 
 class SawyerPTStackCubes(SawyerPTStack):
     @property
@@ -381,13 +432,23 @@ class SawyerPTStackCubes(SawyerPTStack):
         self.sim.forward()
 
     def _check_success(self):
-        return EU.is_stable_placement(
+        success1 = EU.is_stable_placement(
             self.sim,
             self.model.mujoco_objects["cube2"],
             self.sim.model.body_name2id("cube2"),
+            self.model.mujoco_objects["plate"],
+            self.sim.model.body_name2id("plate"),
+        )
+
+        success2 = EU.is_stable_placement(
+            self.sim,
             self.model.mujoco_objects["cube1"],
             self.sim.model.body_name2id("cube1"),
+            self.model.mujoco_objects["cube2"],
+            self.sim.model.body_name2id("cube2"),
         )
+
+        return success1 and success2
 
 
 class SawyerPTStackAll(SawyerPTStack):
