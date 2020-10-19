@@ -3,7 +3,7 @@ from robosuite.models.tasks import Task, UniformRandomSampler
 from robosuite.models.objects import MujocoGeneratedObject, MujocoXMLObject
 from robosuite.utils.mjcf_utils import new_joint, array_to_string
 from copy import deepcopy
-
+import random
 
 class TableTopMergedTask(Task):
     def __init__(self, mujoco_arena, mujoco_robot, mujoco_objects, visual_objects=None, initializer=None):
@@ -39,7 +39,8 @@ class TableTopMergedTask(Task):
         self.mujoco_objects = mujoco_objects
         self.visual_objects = visual_objects
         self.initializer = initializer
-        self.initializer.setup(merged_objects, self.table_top_offset, self.table_size)
+        self.initializer[0].setup(merged_objects, self.table_top_offset, self.table_size)
+        self.initializer[1].setup(merged_objects, self.table_top_offset, self.table_size)
 
     def merge_robot(self, mujoco_robot):
         """Adds robot model to the MJCF model."""
@@ -79,7 +80,15 @@ class TableTopMergedTask(Task):
 
     def place_objects(self):
         """Places objects randomly until no collisions or max iterations hit."""
-        pos_arr, quat_arr = self.initializer.sample()
-        for i in range(len(self.objects)):
-            self.objects[i].set("pos", array_to_string(pos_arr[i]))
-            self.objects[i].set("quat", array_to_string(quat_arr[i]))
+
+        if type(self.initializer) == list:
+            flag = random.randint(0, 1)
+            pos_arr, quat_arr = self.initializer[flag].sample()
+            for i in range(len(self.objects)):
+                self.objects[i].set("pos", array_to_string(pos_arr[i]))
+                self.objects[i].set("quat", array_to_string(quat_arr[i]))
+        else:
+            pos_arr, quat_arr = self.initializer.sample()
+            for i in range(len(self.objects)):
+                self.objects[i].set("pos", array_to_string(pos_arr[i]))
+                self.objects[i].set("quat", array_to_string(quat_arr[i]))

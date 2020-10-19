@@ -648,8 +648,10 @@ class SawyerTool(SawyerEnv):
 
         # object placement initializer
         if placement_initializer is not None:
+            print(placement_initializer)
             self.placement_initializer = placement_initializer
         else:
+            print("defalut")
             self.placement_initializer = self._get_default_initializer()
 
         super().__init__(
@@ -681,16 +683,16 @@ class SawyerTool(SawyerEnv):
         initializer.sample_on_top(
             "tool",
             surface_name="table",
-            x_range=[-0.15, 0.1],
-            y_range=[-0.2, 0.2],
+            x_range=[-0.1, 0.0],
+            y_range=[-0.15, -0.1],
             z_rotation=0.,
-            ensure_object_boundary_in_range=True,
+            ensure_object_boundary_in_range=False,
         )
         initializer.sample_on_top(
             "plate",
             surface_name="table",
             x_range=[-0.2, 0.0],
-            y_range=[-0.3, 0.3],
+            y_range=[0.1, 0.15],
             z_rotation=0., # None
             ensure_object_boundary_in_range=False,
         )
@@ -698,13 +700,42 @@ class SawyerTool(SawyerEnv):
             "cube",
             surface_name="table",
             x_range=[0.18, 0.20],
-            y_range=[-0.2, 0.2],
+            y_range=[-0.15, -0.1],
             z_rotation=0., # None
             z_offset=-0.015,
             ensure_object_boundary_in_range=False,
             allow_contact=False, # Set this to true if we need place one obj on another.
         )
-        return initializer
+
+        initializer_2 = SequentialCompositeSampler()
+        initializer_2.sample_on_top(
+            "tool",
+            surface_name="table",
+            x_range=[-0.1, 0.0],
+            y_range=[0.1, 0.15],
+            z_rotation=0.,
+            ensure_object_boundary_in_range=False,
+        )
+        initializer_2.sample_on_top(
+            "plate",
+            surface_name="table",
+            x_range=[-0.2, 0.0],
+            y_range=[-0.15, -0.1],
+            z_rotation=0., # None
+            ensure_object_boundary_in_range=False,
+        )
+        initializer_2.sample_on_top(
+            "cube",
+            surface_name="table",
+            x_range=[0.18, 0.20],
+            y_range=[0.1, 0.15],
+            z_rotation=0., # None
+            z_offset=-0.015,
+            ensure_object_boundary_in_range=False,
+            allow_contact=False, # Set this to true if we need place one obj on another.
+        )
+
+        return [initializer, initializer_2]
 
     def _get_placement_initializer_for_eval_mode(self):
         """
@@ -713,32 +744,71 @@ class SawyerTool(SawyerEnv):
         This is for reproducibility in policy evaluation.
         """
         assert(self.eval_mode)
+        #print("EVALLLLLLLLLLLLLLLLLLLLLLLLLL")
+        initializer = SequentialCompositeSampler()
+        initializer.sample_on_top(
+            "tool",
+            surface_name="table",
+            x_range=[-0.1, 0.0],
+            y_range=[-0.25, -0.15],
+            # y_range=[-0.15, -0.05],
+            z_rotation=0.,
+            ensure_object_boundary_in_range=False,
+        )
+        initializer.sample_on_top(
+            "plate",
+            surface_name="table",
+            x_range=[-0.2, 0.0],
+            y_range=[0.15, 0.25],
+            # y_range=[0.05, 0.15],
+            z_rotation=0., # None
+            ensure_object_boundary_in_range=False,
+        )
+        initializer.sample_on_top(
+            "cube",
+            surface_name="table",
+            x_range=[0.18, 0.20],
+            y_range=[-0.25, -0.15],
+            # y_range=[-0.15, -0.05],
+            z_rotation=0., # None
+            z_offset=-0.015,
+            ensure_object_boundary_in_range=False,
+            allow_contact=False, # Set this to true if we need place one obj on another.
+        )
 
-        #ordered_object_names = ["tool", "plate", "cube"]
-        #bounds = self._grid_bounds_for_eval_mode()
-        #initializer = SequentialCompositeSampler(round_robin_all_pairs=True)
+        initializer_2 = SequentialCompositeSampler()
+        initializer_2.sample_on_top(
+            "tool",
+            surface_name="table",
+            x_range=[-0.1, 0.0],
+            y_range=[0.15, 0.25],
+            # y_range=[0.05, 0.15],
+            z_rotation=0.,
+            ensure_object_boundary_in_range=False,
+        )
+        initializer_2.sample_on_top(
+            "plate",
+            surface_name="table",
+            x_range=[-0.2, 0.0],
+            y_range=[-0.25, -0.15],
+            # y_range=[-0.15, -0.05],
+            z_rotation=0., # None
+            ensure_object_boundary_in_range=False,
+        )
+        initializer_2.sample_on_top(
+            "cube",
+            surface_name="table",
+            x_range=[0.18, 0.20],
+            y_range=[0.15, 0.25],
+            # y_range=[0.05, 0.15],
+            z_rotation=0., # None
+            z_offset=-0.015,
+            ensure_object_boundary_in_range=False,
+            allow_contact=False, # Set this to true if we need place one obj on another.
+        )
 
-        #for name in ordered_object_names:
-        #    if self.perturb_evals:
-        #        # perturbation sizes should be half the grid spacing
-        #        perturb_sizes = [((b[1] - b[0]) / b[2]) / 2. for b in bounds[name]]
-        #    else:
-        #        perturb_sizes = [None for b in bounds[name]]
-
-        #    grid = bounds_to_grid(bounds[name])
-        #    sampler = RoundRobinSampler(
-        #        x_range=grid[0],
-        #        y_range=grid[1],
-        #        ensure_object_boundary_in_range=False,
-        #        z_rotation=grid[2],
-        #        x_perturb=perturb_sizes[0],
-        #        y_perturb=perturb_sizes[1],
-        #        z_rotation_perturb=perturb_sizes[2],
-        #    )
-        #    initializer.append_sampler(name, sampler)
-
-        #self.placement_initializer = initializer
-        return self._get_default_initializer()
+        self.placement_initializer = [initializer, initializer_2]
+        return [initializer, initializer_2]
 
     def _grid_bounds_for_eval_mode(self):
         """
@@ -749,18 +819,18 @@ class SawyerTool(SawyerEnv):
         ret = {}
 
         # (low, high, number of grid points for this dimension)
-        plate_x_bounds = (0.25, 0.25, 1)
-        plate_y_bounds = (0.25, 0.25, 1)
+        plate_x_bounds = (-0.25, 0.25, 1)
+        plate_y_bounds = (-0.25, 0.25, 1)
         plate_z_rot_bounds = (0., 0., 1)
         ret["tool"] = [plate_x_bounds, plate_y_bounds, plate_z_rot_bounds]
 
-        block1_x_bounds = (-0.3, 0.2, 3)
-        block1_y_bounds = (-0.3, 0.2, 3)
+        block1_x_bounds = (-0.3, 0.3, 3)
+        block1_y_bounds = (-0.3, 0.3, 3)
         block1_z_rot_bounds = (0., 2. * np.pi, 3)
         ret["plate"] = [block1_x_bounds, block1_y_bounds, block1_z_rot_bounds]
 
-        block2_x_bounds = (-0.3, 0.2, 3)
-        block2_y_bounds = (-0.3, 0.2, 3)
+        block2_x_bounds = (-0.3, 0.3, 3)
+        block2_y_bounds = (-0.3, 0.3, 3)
         block2_z_rot_bounds = (0., 2. * np.pi, 3)
         ret["cube"] = [block2_x_bounds, block2_y_bounds, block2_z_rot_bounds]
 
@@ -776,7 +846,7 @@ class SawyerTool(SawyerEnv):
             for j in range(1, 3):
                 plate[0][i][j] = 0
 
-        tool_base = np.zeros((2, 15, 8)) # z, x, y
+        tool_base = np.zeros((2, 15, 10)) # z, x, y
         tool_base[:, :, 0] = 1
         tool_base[:, :, 1] = 1
         tool_base[:, -1, :] = 1
@@ -808,21 +878,90 @@ class SawyerTool(SawyerEnv):
         self.cube_size = 0.02
         self.plate_size = 0.015
 
+        # Customize texture
+        from robosuite.utils.mjcf_utils import CustomMaterial
+        tex_attrib = {
+            "type": "cube",
+        }
+        mat_attrib = {
+            "texrepeat": "1 1",
+            "specular": "0.4",
+            "shininess": "0.1",
+        }
+        woodLight = CustomMaterial(
+            texture="WoodLight",
+            tex_name="lightwood",
+            mat_name="lightwood_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
+        woodTiles = CustomMaterial(
+            # texture="WoodPanels",
+            texture="WoodTiles",
+            # texture="WoodLight",
+            tex_name="woodtiles",
+            mat_name="woodtiles_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
+        woodRed = CustomMaterial(
+            # texture="WoodPanels",
+            texture="WoodRed",
+            # texture="WoodLight",
+            tex_name="redwood",
+            mat_name="redwood_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
+        woodBlue = CustomMaterial(
+            # texture="WoodPanels",
+            texture="WoodBlue",
+            # texture="WoodLight",
+            tex_name="bluewood",
+            mat_name="bluewood_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
+        woodGreen = CustomMaterial(
+            # texture="WoodPanels",
+            texture="WoodGreen",
+            # texture="WoodLight",
+            tex_name="greenwood",
+            mat_name="greenwood_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
+        woodPanels = CustomMaterial(
+            texture="WoodPanels",
+            # texture="WoodRed",
+            # texture="WoodLight",
+            tex_name="panelwood",
+            mat_name="panelwood_mat",
+            tex_attrib=tex_attrib,
+            mat_attrib=mat_attrib,
+        )
+
         tool = BoxPatternObject(
             unit_size=[self.tool_size / 2] * 3,
             pattern=tool,
-            rgba=[1, 0, 0, 1],
+            # rgba=[1, 0, 0, 1],
+            solref=[0.001, 1],
+            material=woodRed
         )
         cube = BoxPatternObject(
             unit_size=[self.cube_size] * 3,
             pattern=cube,
-            rgba=[0, 1, 0, 1],
+            # rgba=[0, 1, 0, 1],
+            solref=[0.001, 1],
+            material=woodBlue#woodGreen
         )
         plate = BoxPatternObject(
             unit_size=[self.plate_size] * 3,
             pattern=plate,
             joint=[],
-            rgba=[0, 0, 1, 1],
+            # rgba=[0, 0, 1, 1],
+            solref=[0.001, 1],
+            material=woodPanels
         )
         self.mujoco_objects = OrderedDict([
             ("tool", tool),
@@ -996,7 +1135,8 @@ class SawyerTool(SawyerEnv):
     def step(self, action):
         if not self._has_interaction and self.eval_mode:
             # this is the first step call of the episode
-            self.placement_initializer.increment_counter()
+            for i in range(len(self.placement_initializer)):
+                self.placement_initializer[i].increment_counter()
         self._has_interaction = True
         action = np.array([action[0], action[1], action[2], 0., 0., 0., action[3]])
         return super().step(action)
