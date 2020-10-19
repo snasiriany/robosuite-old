@@ -1485,6 +1485,19 @@ class SawyerCircus(SawyerThreadingRing):
         )
         return initializer
 
+    def _get_placement_initializer_for_eval_mode(self):
+        """
+        Sets a placement initializer that is used to initialize the
+        environment into a fixed set of known task instances.
+        This is for reproducibility in policy evaluation.
+        """
+
+        assert(self.eval_mode)
+
+        ### NOTE: no eval mode for this task ###
+        self.placement_initializer = self._get_default_initializer()
+        return self.placement_initializer
+
     def _grid_bounds_for_eval_mode(self):
         """
         Helper function to get grid bounds of x positions, y positions, 
