@@ -685,7 +685,7 @@ class SawyerFitPegInHole(SawyerFit):
         # (low, high, number of grid points for this dimension)
         # hole_x_bounds = (-0.03, 0.03, 3)
         # hole_y_bounds = (-0.03, 0.03, 3)
-        hole_x_bounds = (-0.15, 0.15, 3)
+        hole_x_bounds = (-0.15, 0.15, 3) 
         hole_y_bounds = (-0.15, 0.15, 3)
         hole_z_rot_bounds = (0., 0., 1)
         hole_z_offset = 0.
