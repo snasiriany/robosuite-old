@@ -367,6 +367,22 @@ class PickPlace(SingleArmEnv):
 
         return r_reach, r_grasp, r_lift, r_hover
 
+    def _get_env_info(self, action):
+        info = super()._get_env_info(action)
+        r_reach, r_grasp, r_lift, r_hover = self.staged_rewards()
+
+        self._check_success()
+        num_objs_in_bin = np.sum(self.objects_in_bins)
+
+        info.update({
+            'r_reach': r_reach / 0.1,
+            'r_grasp': r_grasp / 0.35,
+            'r_lift': r_lift / 0.5,
+            'r_hover': r_hover / 0.7,
+            'num_objs_in_bin': num_objs_in_bin,
+        })
+        return info
+
     def not_in_bin(self, obj_pos, bin_id):
 
         bin_x_low = self.bin2_pos[0]

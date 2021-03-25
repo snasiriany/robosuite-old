@@ -92,7 +92,7 @@ class GymWrapper(Wrapper, Env):
         ob_dict = self.env.reset()
         return self._flatten_obs(ob_dict)
 
-    def step(self, action):
+    def step(self, action, **kwargs):
         """
         Extends vanilla step() function call to return flattened observation instead of normal OrderedDict.
 
@@ -107,7 +107,7 @@ class GymWrapper(Wrapper, Env):
                 - (bool) whether the current episode is completed or not
                 - (dict) misc information
         """
-        ob_dict, reward, done, info = self.env.step(action)
+        ob_dict, reward, done, info = self.env.step(action, **kwargs)
         return self._flatten_obs(ob_dict), reward, done, info
 
     def seed(self, seed=None):

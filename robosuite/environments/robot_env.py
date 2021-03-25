@@ -325,6 +325,36 @@ class RobotEnv(MujocoEnv):
 
         return observables
 
+    def step(self, action, image_obs_in_info=False):
+        obs, reward, done, info = super().step(action)
+
+        if image_obs_in_info:
+            info['image_obs'] = [self._get_camera_obs()['agentview_image']]
+        info.update(self._get_env_info(action))
+
+        return obs, reward, done, info
+
+    def _get_env_info(self, action):
+        return {}
+
+    def _get_camera_obs(self):
+        di = OrderedDict()
+        for (cam_name, cam_w, cam_h, cam_d) in \
+                zip(self.camera_names, self.camera_widths, self.camera_heights, self.camera_depths):
+
+            # Add camera observations to the dict
+            camera_obs = self.sim.render(
+                camera_name=cam_name,
+                width=cam_w,
+                height=cam_h,
+                depth=cam_d,
+            )
+            if cam_d:
+                di[cam_name + "_image"], di[cam_name + "_depth"] = camera_obs
+            else:
+                di[cam_name + "_image"] = camera_obs
+        return di
+
     def _create_camera_sensors(self, cam_name, cam_w, cam_h, cam_d, modality="image"):
         """
         Helper function to create sensors for a given camera. This is abstracted in a separate function call so that we
