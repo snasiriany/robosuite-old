@@ -243,6 +243,19 @@ class MujocoEnv(metaclass=EnvMeta):
             else:
                 di["image"] = camera_obs
 
+            wrist_camera_obs = self.sim.render(
+                camera_name="eye_in_hand",
+                width=self.camera_width,
+                height=self.camera_height,
+                depth=self.camera_depth,
+            )
+            if self.camera_depth:
+                di["image_wrist"], di["depth_wrist"] = wrist_camera_obs
+                if self.camera_real_depth:
+                    di["depth_wrist"] = self.z_buffer_to_real_depth(di["depth_wrist"])
+            else:
+                di["image_wrist"] = wrist_camera_obs
+
             if self.camera_segmentation:
                 di["segmentation"] = self.render_segmentation(
                     self.camera_name, camera_width=self.camera_width, camera_height=self.camera_height)
