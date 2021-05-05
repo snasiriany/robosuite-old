@@ -22,6 +22,17 @@ from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
 from robosuite.utils.observables import Observable, sensor
 
+DEFAULT_PICKPLACE_CONFIG = {
+    'reach_mult': 0.1,
+    'grasp_mult': 0.35,
+    'lift_mult': 0.5,
+    'hover_mult': 0.7,
+    'hover_tanh_mult': 10.0,
+    'penalize_roll': False,
+    'penalize_pitch': False,
+    'penalize_yaw': False,
+}
+
 
 class PickPlace(SingleArmEnv):
     """
@@ -180,6 +191,7 @@ class PickPlace(SingleArmEnv):
         camera_heights=256,
         camera_widths=256,
         camera_depths=False,
+        task_config=None,
     ):
         # task settings
         self.single_object_mode = single_object_mode
@@ -211,6 +223,12 @@ class PickPlace(SingleArmEnv):
 
         # whether to use ground-truth object states
         self.use_object_obs = use_object_obs
+
+        # Get config
+        self.task_config = DEFAULT_PICKPLACE_CONFIG.copy()
+        if task_config is not None:
+            assert all([k in self.task_config for k in task_config])
+            self.task_config.update(task_config)
 
         super().__init__(
             robots=robots,
@@ -291,10 +309,10 @@ class PickPlace(SingleArmEnv):
                 - (float) hovering reward
         """
 
-        reach_mult = 0.1
-        grasp_mult = 0.35
-        lift_mult = 0.5
-        hover_mult = 0.7
+        reach_mult = self.task_config['reach_mult']
+        grasp_mult = self.task_config['grasp_mult']
+        lift_mult = self.task_config['lift_mult']
+        hover_mult = self.task_config['hover_mult']
 
         # filter out objects that are already in the correct bins
         active_objs = []
@@ -356,12 +374,13 @@ class PickPlace(SingleArmEnv):
             )
             # objects to the left get r_lift added to hover reward,
             # those on the right get max(r_lift) added (to encourage dropping)
+            hover_tanh_mult = self.task_config['hover_tanh_mult']
             r_hover_all = np.zeros(len(active_objs))
             r_hover_all[objects_above_bins] = lift_mult + (
-                    1 - np.tanh(10.0 * dists[objects_above_bins])
+                    1 - np.tanh(hover_tanh_mult * dists[objects_above_bins])
             ) * (hover_mult - lift_mult)
             r_hover_all[objects_not_above_bins] = r_lift + (
-                    1 - np.tanh(10.0 * dists[objects_not_above_bins])
+                    1 - np.tanh(hover_tanh_mult * dists[objects_not_above_bins])
             ) * (hover_mult - lift_mult)
             r_hover = np.max(r_hover_all)
 
