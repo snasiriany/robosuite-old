@@ -241,6 +241,29 @@ class Lift(SingleArmEnv):
 
         return reward
 
+    def _get_env_info(self, action):
+        info = super()._get_env_info(action)
+
+        cube_pos = self.sim.data.body_xpos[self.cube_body_id]
+        gripper_site_pos = self.sim.data.site_xpos[self.robots[0].eef_site_id]
+        dist = np.linalg.norm(gripper_site_pos - cube_pos)
+        reaching_reward = 1 - np.tanh(10.0 * dist)
+
+        # grasping reward
+        grasped = self._check_grasp(gripper=self.robots[0].gripper, object_geoms=self.cube)
+
+        cube_height = self.sim.data.body_xpos[self.cube_body_id][2]
+        table_height = self.model.mujoco_arena.table_offset[2]
+
+        info.update({
+            'reach_dist': dist,
+            'reach_rew': reaching_reward,
+            'grasped': float(grasped),
+            'success': float(self._check_success()),
+            'cube_height': cube_height - table_height,
+        })
+        return info
+
     def _load_model(self):
         """
         Loads an xml model, puts it in self.model
