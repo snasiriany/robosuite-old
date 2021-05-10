@@ -21,6 +21,7 @@ from robosuite.models.objects import (
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
 from robosuite.utils.observables import Observable, sensor
+import robosuite.utils.transform_utils as trans
 
 DEFAULT_PICKPLACE_CONFIG = {
     'reach_mult': 0.1,
@@ -31,6 +32,7 @@ DEFAULT_PICKPLACE_CONFIG = {
     'penalize_roll': False,
     'penalize_pitch': False,
     'penalize_yaw': False,
+    'penalize_height': False,
 }
 
 
@@ -289,12 +291,46 @@ class PickPlace(SingleArmEnv):
         if self.reward_shaping:
             staged_rewards = self.staged_rewards()
             reward += max(staged_rewards)
+
+            roll_pen, pitch_pen, yaw_pen = self._compute_ori_penalty()
+            if self.task_config['penalize_roll']:
+                reward -= roll_pen
+            if self.task_config['penalize_pitch']:
+                reward -= pitch_pen
+            if self.task_config['penalize_yaw']:
+                reward -= yaw_pen
+            reward = max(reward, 0.0)
+
         if self.reward_scale is not None:
             reward *= self.reward_scale
             if self.single_object_mode == 0:
                 reward /= 4.0
         return reward
 
+    def _compute_ori_penalty(self):
+        robot_controller = self.robots[0].controller
+        cur_ori = trans.mat2euler(robot_controller.ee_ori_mat, axes="rxyz")
+        goal_ori = [np.pi, 0.13, -1.57]
+        ee_ori_diff = np.minimum(
+            (goal_ori - cur_ori) % (2 * np.pi),
+            (cur_ori - goal_ori) % (2 * np.pi)
+        )
+        threshold = np.pi / 4
+        raw_penalty = np.maximum(ee_ori_diff - threshold, 0.0)
+        return np.tanh(10.0 * raw_penalty)
+
+    def _compute_height_penalty(self):
+        active_objs = []
+        for i, obj in enumerate(self.objects):
+            if self.objects_in_bins[i]:
+                continue
+            active_objs.append(obj)
+        object_z_locs = self.sim.data.body_xpos[[self.obj_body_id[active_obj.name]
+                                                 for active_obj in active_objs]][:, 2]
+        z_th = self.bin2_pos[2] + 0.40
+        z_excess = np.maximum(object_z_locs - z_th, 0.)
+        return np.tanh(25.0 * max(z_excess))
+    
     def staged_rewards(self):
         """
         Returns staged rewards based on current physical states.
@@ -341,6 +377,11 @@ class PickPlace(SingleArmEnv):
             object_geoms=[g for active_obj in active_objs for g in active_obj.contact_geoms])
         ) * grasp_mult
 
+        if self.task_config['penalize_height']:
+            z_rew_factor = 1.0 - self._compute_height_penalty()
+        else:
+            z_rew_factor = 1.0
+
         # lifting reward for picking up an object
         r_lift = 0.
         if active_objs and r_grasp > 0.:
@@ -348,7 +389,7 @@ class PickPlace(SingleArmEnv):
             object_z_locs = self.sim.data.body_xpos[[self.obj_body_id[active_obj.name]
                                                      for active_obj in active_objs]][:, 2]
             z_dists = np.maximum(z_target - object_z_locs, 0.)
-            r_lift = grasp_mult + (1 - np.tanh(15.0 * min(z_dists))) * (
+            r_lift = grasp_mult + (1 - np.tanh(15.0 * min(z_dists))) * z_rew_factor * (
                     lift_mult - grasp_mult
             )
 
@@ -378,10 +419,10 @@ class PickPlace(SingleArmEnv):
             r_hover_all = np.zeros(len(active_objs))
             r_hover_all[objects_above_bins] = lift_mult + (
                     1 - np.tanh(hover_tanh_mult * dists[objects_above_bins])
-            ) * (hover_mult - lift_mult)
+            ) * z_rew_factor * (hover_mult - lift_mult)
             r_hover_all[objects_not_above_bins] = r_lift + (
                     1 - np.tanh(hover_tanh_mult * dists[objects_not_above_bins])
-            ) * (hover_mult - lift_mult)
+            ) * z_rew_factor * (hover_mult - lift_mult)
             r_hover = np.max(r_hover_all)
 
         return r_reach, r_grasp, r_lift, r_hover
@@ -398,12 +439,19 @@ class PickPlace(SingleArmEnv):
         lift_mult = self.task_config['lift_mult']
         hover_mult = self.task_config['hover_mult']
 
+        roll_pen, pitch_pen, yaw_pen = self._compute_ori_penalty()
+
         info.update({
             'r_reach': r_reach / reach_mult,
             'r_grasp': r_grasp / grasp_mult,
             'r_lift': r_lift / lift_mult,
             'r_hover': r_hover / hover_mult,
             'num_objs_in_bin': num_objs_in_bin,
+
+            'roll_pen': roll_pen,
+            'pitch_pen': pitch_pen,
+            'yaw_pen': yaw_pen,
+            'height_pen': self._compute_height_penalty()
         })
         return info
 
