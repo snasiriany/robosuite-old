@@ -393,11 +393,16 @@ class PickPlace(SingleArmEnv):
         self._check_success()
         num_objs_in_bin = np.sum(self.objects_in_bins)
 
+        reach_mult = self.task_config['reach_mult']
+        grasp_mult = self.task_config['grasp_mult']
+        lift_mult = self.task_config['lift_mult']
+        hover_mult = self.task_config['hover_mult']
+
         info.update({
-            'r_reach': r_reach / 0.1,
-            'r_grasp': r_grasp / 0.35,
-            'r_lift': r_lift / 0.5,
-            'r_hover': r_hover / 0.7,
+            'r_reach': r_reach / reach_mult,
+            'r_grasp': r_grasp / grasp_mult,
+            'r_lift': r_lift / lift_mult,
+            'r_hover': r_hover / hover_mult,
             'num_objs_in_bin': num_objs_in_bin,
         })
         return info
