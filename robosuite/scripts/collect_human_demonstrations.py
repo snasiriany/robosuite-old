@@ -83,7 +83,7 @@ def collect_human_trajectory(env, device, arm, env_configuration):
     env.close()
 
 
-def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
+def gather_demonstrations_as_hdf5(directory, out_dir, env_info, dir_sort_fn=lambda x:x, total_eps=None):
     """
     Gathers the demonstrations saved in @directory into a
     single hdf5 file.
@@ -120,8 +120,7 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
     num_eps = 0
     env_name = None  # will get populated at some point
 
-    for ep_directory in os.listdir(directory):
-
+    for ep_directory in dir_sort_fn(os.listdir(directory)):
         state_paths = os.path.join(directory, ep_directory, "state_*.npz")
         states = []
         actions = []
@@ -156,6 +155,9 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
         ep_data_grp.create_dataset("states", data=np.array(states))
         ep_data_grp.create_dataset("actions", data=np.array(actions))
 
+        if total_eps is not None and num_eps >= total_eps:
+            break
+
     # write dataset attributes (metadata)
     now = datetime.datetime.now()
     grp.attrs["date"] = "{}-{}-{}".format(now.month, now.day, now.year)
@@ -163,6 +165,10 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
     grp.attrs["repository_version"] = suite.__version__
     grp.attrs["env"] = env_name
     grp.attrs["env_info"] = env_info
+
+    ### additional keys
+    grp.attrs["teleop_config"] = json.dumps(dict())
+    grp.attrs["teleop_env_metadata"] = env_info
 
     f.close()
 
