@@ -327,7 +327,7 @@ class PickPlace(SingleArmEnv):
             active_objs.append(obj)
         object_z_locs = self.sim.data.body_xpos[[self.obj_body_id[active_obj.name]
                                                  for active_obj in active_objs]][:, 2]
-        z_th = self.bin2_pos[2] + 0.40
+        z_th = self.bin2_pos[2] + 0.45
         z_excess = np.maximum(object_z_locs - z_th, 0.)
         return np.tanh(25.0 * max(z_excess))
     
@@ -395,7 +395,8 @@ class PickPlace(SingleArmEnv):
 
         # hover reward for getting object above bin
         r_hover = 0.
-        if active_objs:
+        # if active_objs:
+        if active_objs and r_grasp > 0.:
             target_bin_ids = [self.object_to_id[active_obj.name.lower()] for active_obj in active_objs]
             # segment objects into left of the bins and above the bins
             object_xy_locs = self.sim.data.body_xpos[[self.obj_body_id[active_obj.name]
