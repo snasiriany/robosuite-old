@@ -1,6 +1,7 @@
 from collections import OrderedDict
 import time
 import numpy as np
+import egl_probe
 
 from mujoco_py import MjSim, MjRenderContextOffscreen
 from mujoco_py import load_model_from_xml
@@ -209,7 +210,8 @@ class MujocoEnv(metaclass=EnvMeta):
 
         elif self.has_offscreen_renderer:
             if self.sim._render_context_offscreen is None:
-                render_context = MjRenderContextOffscreen(self.sim)
+                device_id = egl_probe.get_available_devices()[0]
+                render_context = MjRenderContextOffscreen(self.sim, device_id=device_id)
                 self.sim.add_render_context(render_context)
             self.sim._render_context_offscreen.vopt.geomgroup[0] = (
                 1 if self.render_collision_mesh else 0
