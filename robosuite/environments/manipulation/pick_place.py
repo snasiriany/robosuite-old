@@ -315,7 +315,7 @@ class PickPlace(SingleArmEnv):
             (goal_ori - cur_ori) % (2 * np.pi),
             (cur_ori - goal_ori) % (2 * np.pi)
         )
-        threshold = np.pi / 4
+        threshold = 3 * np.pi / 8
         raw_penalty = np.maximum(ee_ori_diff - threshold, 0.0)
         return np.tanh(10.0 * raw_penalty)
 
