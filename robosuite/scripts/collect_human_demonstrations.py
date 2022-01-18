@@ -222,7 +222,7 @@ if __name__ == "__main__":
 
     # wrap the environment with data collection wrapper
     tmp_directory = "/tmp/{}".format(str(time.time()).replace(".", "_"))
-    env = DataCollectionWrapper(env, tmp_directory)
+    # env = DataCollectionWrapper(env, tmp_directory)
 
     # initialize device
     if args.device == "keyboard":
@@ -247,4 +247,4 @@ if __name__ == "__main__":
     # collect demonstrations
     while True:
         collect_human_trajectory(env, device, args.arm, args.config)
-        gather_demonstrations_as_hdf5(tmp_directory, new_dir, env_info)
+        # gather_demonstrations_as_hdf5(tmp_directory, new_dir, env_info)
