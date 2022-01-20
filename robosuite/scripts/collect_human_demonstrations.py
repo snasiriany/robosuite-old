@@ -83,7 +83,7 @@ def collect_human_trajectory(env, device, arm, env_configuration):
     env.close()
 
 
-def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
+def gather_demonstrations_as_hdf5(directory, out_dir, env_info, excluded_episodes=None):
     """
     Gathers the demonstrations saved in @directory into a
     single hdf5 file.
@@ -121,10 +121,15 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
     env_name = None  # will get populated at some point
 
     for ep_directory in os.listdir(directory):
+        print("Processing {} ...".format(ep_directory))
+        if (excluded_episodes is not None) and (ep_directory in excluded_episodes):
+            print("\tExcluding this episode!")
+            continue
 
         state_paths = os.path.join(directory, ep_directory, "state_*.npz")
         states = []
         actions = []
+        action_modes = []
 
         for state_file in sorted(glob(state_paths)):
             dic = np.load(state_file, allow_pickle=True)
@@ -133,6 +138,7 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
             states.extend(dic["states"])
             for ai in dic["action_infos"]:
                 actions.append(ai["actions"])
+                action_modes.append(ai["action_modes"])
                 
         if len(states) == 0:
             continue
@@ -155,6 +161,11 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
         # write datasets for states and actions
         ep_data_grp.create_dataset("states", data=np.array(states))
         ep_data_grp.create_dataset("actions", data=np.array(actions))
+        ep_data_grp.create_dataset("action_modes", data=np.array(action_modes))
+
+    if num_eps == 0:
+        f.close()
+        return
 
     # write dataset attributes (metadata)
     now = datetime.datetime.now()

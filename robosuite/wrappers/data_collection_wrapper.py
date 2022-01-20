@@ -135,7 +135,7 @@ class DataCollectionWrapper(Wrapper):
         self._start_new_episode()
         return ret
 
-    def step(self, action):
+    def step(self, action, action_mode=-1):
         """
         Extends vanilla step() function call to accommodate data collection
 
@@ -164,6 +164,7 @@ class DataCollectionWrapper(Wrapper):
 
             info = {}
             info["actions"] = np.array(action)
+            info["action_modes"] = action_mode
             self.action_infos.append(info)
 
         # flush collected data to disk if necessary
