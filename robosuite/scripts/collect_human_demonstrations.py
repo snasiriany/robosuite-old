@@ -83,7 +83,7 @@ def collect_human_trajectory(env, device, arm, env_configuration):
     env.close()
 
 
-def gather_demonstrations_as_hdf5(directory, out_dir, env_info, excluded_episodes=None):
+def gather_demonstrations_as_hdf5(directory, out_dir, env_info, excluded_episodes=None, meta_data=None):
     """
     Gathers the demonstrations saved in @directory into a
     single hdf5 file.
@@ -112,6 +112,7 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info, excluded_episode
     """
 
     hdf5_path = os.path.join(out_dir, "demo.hdf5")
+    print("Saving hdf5 to", hdf5_path)
     f = h5py.File(hdf5_path, "w")
 
     # store some metadata in the attributes of one group
@@ -121,9 +122,9 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info, excluded_episode
     env_name = None  # will get populated at some point
 
     for ep_directory in os.listdir(directory):
-        print("Processing {} ...".format(ep_directory))
+        # print("Processing {} ...".format(ep_directory))
         if (excluded_episodes is not None) and (ep_directory in excluded_episodes):
-            print("\tExcluding this episode!")
+            # print("\tExcluding this episode!")
             continue
 
         state_paths = os.path.join(directory, ep_directory, "state_*.npz")
@@ -174,6 +175,10 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info, excluded_episode
     grp.attrs["repository_version"] = suite.__version__
     grp.attrs["env"] = env_name
     grp.attrs["env_info"] = env_info
+
+    if meta_data is not None:
+        for (k, v) in meta_data.items():
+            grp.attrs[k] = v
 
     f.close()
 
