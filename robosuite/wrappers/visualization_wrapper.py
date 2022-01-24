@@ -18,7 +18,7 @@ DEFAULT_INDICATOR_SITE_CONFIG = {
 
 
 class VisualizationWrapper(Wrapper):
-    def __init__(self, env, indicator_configs=None):
+    def __init__(self, env, indicator_configs=None, disable_vis=False):
         """
         Initializes the data collection wrapper. Note that this automatically conducts a (hard) reset initially to make
         sure indicators are properly added to the sim model.
@@ -62,6 +62,8 @@ class VisualizationWrapper(Wrapper):
 
         # Add the post-processor to make sure indicator objects get added to model before it's actually loaded in sim
         self.env.set_model_postprocessor(postprocessor=self._add_indicators_to_model)
+
+        self._disable_vis = disable_vis
 
         # Conduct a (hard) reset to make sure visualization changes propagate
         reset_mode = self.env.hard_reset
@@ -124,7 +126,8 @@ class VisualizationWrapper(Wrapper):
         """
         ret = super().reset()
         # Update any visualization
-        self.env.visualize(vis_settings=self._vis_settings)
+        if not self._disable_vis:
+            self.env.visualize(vis_settings=self._vis_settings)
         return ret
 
     def step(self, action):
@@ -145,7 +148,8 @@ class VisualizationWrapper(Wrapper):
         ret = super().step(action)
 
         # Update any visualization
-        self.env.visualize(vis_settings=self._vis_settings)
+        if not self._disable_vis:
+            self.env.visualize(vis_settings=self._vis_settings)
 
         return ret
 
