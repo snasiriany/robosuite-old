@@ -17,8 +17,12 @@ import numpy as np
 
 import robosuite
 import robosuite.utils.transform_utils as T
-from robosuite.wrappers import IKWrapper
+# from robosuite.wrappers import IKWrapper
 from robosuite.wrappers import DataCollectionWrapper
+
+from robosuite.devices import *
+
+from robosuite.controllers import load_controller_config
 
 
 def collect_human_trajectory(env, device):
@@ -34,8 +38,8 @@ def collect_human_trajectory(env, device):
 
     obs = env.reset()
 
-    # rotate the gripper so we can see it easily
-    env.set_robot_joint_positions([0, -1.18, 0.00, 2.18, 0.00, 0.57, 1.5708])
+    # # rotate the gripper so we can see it easily
+    # env.set_robot_joint_positions([0, -1.18, 0.00, 2.18, 0.00, 0.57, 1.5708])
 
     env.viewer.set_camera(camera_id=2)
     env.render()
@@ -48,19 +52,34 @@ def collect_human_trajectory(env, device):
     device.start_control()
     while not reset:
         state = device.get_controller_state()
-        dpos, rotation, grasp, reset = (
+        dpos, rotation, raw_drotation, grasp, reset = (
             state["dpos"],
             state["rotation"],
+            state["raw_drotation"],
             state["grasp"],
             state["reset"],
         )
 
-        # convert into a suitable end effector action for the environment
-        current = env._right_hand_orn
-        drotation = current.T.dot(rotation)  # relative rotation of desired from current
-        dquat = T.mat2quat(drotation)
-        grasp = grasp - 1.  # map 0 to -1 (open) and 1 to 0 (closed halfway)
-        action = np.concatenate([dpos, dquat, [grasp]])
+        # # convert into a suitable end effector action for the environment
+        # current = env._right_hand_orn
+        # drotation = current.T.dot(rotation)  # relative rotation of desired from current
+        # dquat = T.mat2quat(drotation)
+        # grasp = grasp - 1.  # map 0 to -1 (open) and 1 to 0 (closed halfway)
+        # action = np.concatenate([dpos, dquat, [grasp]])
+
+        gripper_dof = 1
+        drotation = raw_drotation[[1, 0, 2]]
+
+        # Flip z
+        drotation[2] = -drotation[2]
+        # Scale rotation for teleoperation (tuned for OSC) -- gains tuned for each device
+        drotation = drotation * 1.5 if isinstance(device, Keyboard) else drotation * 50
+        dpos = dpos * 75 if isinstance(device, Keyboard) else dpos * 125
+
+        if grasp == 0:
+            grasp = -1
+
+        action = np.concatenate([dpos, drotation, [grasp] * gripper_dof])
 
         obs, reward, done, info = env.step(action)
 
@@ -95,6 +114,7 @@ def collect_human_trajectory(env, device):
         else:
             task_completion_hold_count = -1 # null the counter if there's no success
 
+    print()
     # cleanup for end of data collection episodes
     env.close()
 
@@ -234,18 +254,22 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="keyboard")
     args = parser.parse_args()
 
+    controller_path = os.path.join(os.path.dirname(__file__), '..', 'controllers/config/ee_pos_ori.json')
+    controller_config = load_controller_config(custom_fpath=controller_path)
+
     # create original environment
     env = robosuite.make(
         args.environment,
+        controller_config = controller_config,
         ignore_done=True,
         use_camera_obs=False,
         has_renderer=True,
-        control_freq=100,
+        control_freq=50, #100,
         gripper_visualization=True,
     )
 
-    # enable controlling the end effector directly instead of using joint velocities
-    env = IKWrapper(env)
+    # # enable controlling the end effector directly instead of using joint velocities
+    # env = IKWrapper(env)
 
     # wrap the environment with data collection wrapper
     tmp_directory = "/tmp/{}".format(str(time.time()).replace(".", "_"))
@@ -276,4 +300,4 @@ if __name__ == "__main__":
     # collect demonstrations
     while True:
         collect_human_trajectory(env, device)
-        gather_demonstrations_as_hdf5(tmp_directory, new_dir)
+        # gather_demonstrations_as_hdf5(tmp_directory, new_dir)

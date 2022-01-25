@@ -7,6 +7,7 @@ import robosuite.utils.transform_utils as T
 import robosuite.utils.control_utils as C
 import robosuite.utils.env_utils as EU
 from robosuite.environments.sawyer import SawyerEnv
+from robosuite.environments.panda import PandaEnv
 
 from robosuite.models.arenas import TableArena
 from robosuite.models.objects import BoxObject, CompositeBodyObject, HingeStackObject, CoffeeMachineObject
@@ -16,7 +17,7 @@ from robosuite.controllers import load_controller_config
 import os
 
 
-class SawyerCoffee(SawyerEnv):
+class PandaCoffee(PandaEnv):
     """
     This class corresponds to the coffee task for the Sawyer robot arm.
     """
@@ -24,7 +25,7 @@ class SawyerCoffee(SawyerEnv):
     def __init__(
         self,
         controller_config=None,
-        gripper_type="TwoFingerGripper",
+        gripper_type="PandaGripper",
         table_full_size=(0.8, 0.8, 0.8),
         table_friction=(1., 5e-3, 1e-4),
         use_camera_obs=True,
@@ -33,7 +34,7 @@ class SawyerCoffee(SawyerEnv):
         placement_initializer=None,
         gripper_visualization=False,
         use_indicator_object=False,
-        indicator_args=None,
+        indicator_num=1,
         has_renderer=False,
         has_offscreen_renderer=True,
         render_collision_mesh=False,
@@ -149,7 +150,7 @@ class SawyerCoffee(SawyerEnv):
             gripper_type=gripper_type,
             gripper_visualization=gripper_visualization,
             use_indicator_object=use_indicator_object,
-            indicator_args=indicator_args,
+            indicator_num=indicator_num,
             has_renderer=has_renderer,
             has_offscreen_renderer=has_offscreen_renderer,
             render_collision_mesh=render_collision_mesh,
@@ -304,8 +305,9 @@ class SawyerCoffee(SawyerEnv):
         ])
 
         # reset initial joint positions (gets reset in sim during super() call in _reset_internal)
-        # self.init_qpos = np.array([-0.5538, -0.8208, 0.4155, 1.8409, -0.4955, 0.6482, 1.9628])
-        self.init_qpos = np.array([0.00, -1.18, 0.00, 2.18, 0.00, 0.57, 1.5708])
+        # self.init_qpos = np.array([0.00, -1.18, 0.00, 2.18, 0.00, 0.57, 1.5708])
+        # self.init_qpos += np.random.randn(self.init_qpos.shape[0]) * 0.02
+        self.init_qpos = np.array(self.mujoco_robot.init_qpos)
         self.init_qpos += np.random.randn(self.init_qpos.shape[0]) * 0.02
 
         # task includes arena, robot, and objects of interest
@@ -730,328 +732,4 @@ class SawyerCoffee(SawyerEnv):
             rgba[3] = 0.5
 
             self.sim.model.site_rgba[self.eef_site_id] = rgba
-
-
-class SawyerCoffeeFT(SawyerCoffee):
-    """
-    Variant of Sawyer Coffee task that is equipped with FT sensors on the gripper
-    and in the environment for improved observations.
-    """
-    def __init__(
-        self,
-        **kwargs
-    ):
-        # use FT gripper
-        assert "gripper_type" not in kwargs
-        kwargs["gripper_type"] = "TwoFingerGripperWithFT"
-        super().__init__(**kwargs)
-
-    def _load_model(self):
-        """
-        Loads an xml model, puts it in self.model
-        """
-        SawyerEnv._load_model(self)
-        self.mujoco_robot.set_base_xpos([0, 0, 0])
-
-        # load model for table top workspace
-        self.mujoco_arena = TableArena(
-            table_full_size=self.table_full_size, table_friction=self.table_friction
-        )
-        if self.use_indicator_object:
-            self.mujoco_arena.add_pos_indicator(**self.indicator_args)
-
-        # The sawyer robot has a pedestal, we want to align it with the table
-        self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
-
-        from robosuite.models.objects import CoffeeMachineBodyObject, CoffeeMachineLidObject, CoffeeMachineBaseObject, CoffeeMachinePodObject, CylinderObject
-        self.coffee_pod = CoffeeMachinePodObject()
-
-        from robosuite.models.objects import CoffeeMachineObject2
-        # pod_holder_friction = [1.0, 5e-3, 1e-4] # low friction on holder surface
-        self.coffee_machine = CoffeeMachineObject2(
-            add_cup=True, 
-            # pod_holder_friction=pod_holder_friction,
-        )
-
-        self.mujoco_objects = OrderedDict([
-            ("coffee_machine", self.coffee_machine), 
-            ("coffee_pod", self.coffee_pod),
-        ])
-
-        # reset initial joint positions (gets reset in sim during super() call in _reset_internal)
-        self.init_qpos = np.array([0.00, -1.18, 0.00, 2.18, 0.00, 0.57, 1.5708])
-
-        # task includes arena, robot, and objects of interest
-        self.model = TableTopMergedTask(
-            self.mujoco_arena,
-            self.mujoco_robot,
-            self.mujoco_objects,
-            initializer=self.placement_initializer,
-        )
-        self.model.place_objects()
-
-    def _get_observation(self):
-        """
-        Returns an OrderedDict containing observations [(name_string, np.array), ...].
-
-        Important keys:
-            robot-state: contains robot-centric information.
-            object-state: requires @self.use_object_obs to be True.
-                contains object-centric information.
-            image: requires @self.use_camera_obs to be True.
-                contains a rendered frame from the simulation.
-            depth: requires @self.use_camera_obs and @self.camera_depth to be True.
-                contains a rendered depth map from the simulation
-        """
-        di = super()._get_observation()
-        if self.use_object_obs:
-            # add in sensor measurement
-            di["object-state"] = np.concatenate([
-                di["object-state"],
-                self.get_sensor_measurement("force_ee"),
-                self.get_sensor_measurement("torque_ee"),
-            ])
-            di["object-state-col"] = np.concatenate([
-                di["object-state-col"],
-                self.get_sensor_measurement("force_ee"),
-                self.get_sensor_measurement("torque_ee"),
-            ])
-        return di
-
-class SawyerCoffeeContact(SawyerCoffeeFT):
-    """
-    Variant of Sawyer Coffee task that includes contact information
-    in the observations.
-    """
-    def _get_reference(self):
-        """
-        Sets up references to important components. A reference is typically an
-        index or a list of indices that point to the corresponding elements
-        in a flatten array, which is how MuJoCo stores physical simulation data.
-        """
-        super()._get_reference()
-        self.object_body_ids = {}
-        self.object_body_ids["coffee_pod_holder"] = self.sim.model.body_name2id("coffee_machine_4")
-        self.object_body_ids["coffee_pod"] = self.sim.model.body_name2id("coffee_pod")
-        
-        self.pod_geom_id = self.sim.model.geom_name2id("coffee_pod")
-        pod_holder_geom_names = ["coffee_machine_4_0_{}".format(i) for i in range(64)]
-        self.pod_holder_geom_ids = [self.sim.model.geom_name2id(x) for x in pod_holder_geom_names]
-        self.eef_geom_ids = [self.sim.model.geom_name2id(x) for x in self.gripper.contact_geoms()]
-
-    def _get_observation(self):
-        """
-        Returns an OrderedDict containing observations [(name_string, np.array), ...].
-
-        Important keys:
-            robot-state: contains robot-centric information.
-            object-state: requires @self.use_object_obs to be True.
-                contains object-centric information.
-            image: requires @self.use_camera_obs to be True.
-                contains a rendered frame from the simulation.
-            depth: requires @self.use_camera_obs and @self.camera_depth to be True.
-                contains a rendered depth map from the simulation
-        """
-        di = SawyerCoffee._get_observation(self)
-        if self.use_object_obs:
-
-            # check contacts
-            robot_and_pod_contact = 0
-            robot_and_pod_holder_contact = 0
-            pod_and_pod_holder_contact = 0
-            for contact in self.sim.data.contact[: self.sim.data.ncon]:
-                if (
-                    ((contact.geom1 in self.eef_geom_ids) and (contact.geom2 == self.pod_geom_id)) or
-                    ((contact.geom2 in self.eef_geom_ids) and (contact.geom1 == self.pod_geom_id))
-                ):
-                    robot_and_pod_contact = 1
-                elif(
-                    ((contact.geom1 in self.eef_geom_ids) and (contact.geom2 in self.pod_holder_geom_ids)) or
-                    ((contact.geom2 in self.eef_geom_ids) and (contact.geom1 in self.pod_holder_geom_ids))
-                ):
-                    robot_and_pod_holder_contact = 1
-                elif(
-                    ((contact.geom1 == self.pod_geom_id) and (contact.geom2 in self.pod_holder_geom_ids)) or
-                    ((contact.geom2 == self.pod_geom_id) and (contact.geom1 in self.pod_holder_geom_ids))
-                ):
-                    pod_and_pod_holder_contact = 1
-
-            # add in contact observations
-            di["object-state"] = np.concatenate([
-                di["object-state"],
-                [robot_and_pod_contact, robot_and_pod_holder_contact, pod_and_pod_holder_contact],
-            ])
-            di["object-state-col"] = np.concatenate([
-                di["object-state-col"],
-                [robot_and_pod_contact, robot_and_pod_holder_contact, pod_and_pod_holder_contact],
-            ])
-        return di
-
-
-class SawyerCoffeeContactPenalty(SawyerCoffeeContact):
-    """
-    Reward function penalizes pod contact with rim during insertion.
-    """
-    def __init__(self, **kwargs):
-        assert "penalize_rim" not in kwargs
-        kwargs["penalize_rim"] = True
-        super().__init__(**kwargs)
-
-
-class SawyerCoffeeMinimal(SawyerCoffee):
-    """
-    Observation space is 
-    [
-        coffee pod pose in eef frame, 
-        coffee pod pose in pod container frame, 
-        hinge angle,
-    ]
-    """
-
-    def _rel_pose_for_key(self, k, world_pose_in_ref):
-        # position and rotation of the relevant bodies
-        body_id = self.object_body_ids[k]
-        body_pos = np.array(self.sim.data.body_xpos[body_id])
-        body_quat = T.convert_quat(
-            np.array(self.sim.data.body_xquat[body_id]), to="xyzw"
-        )
-
-        # get relative pose of object in reference frame
-        body_pose = T.pose2mat((body_pos, body_quat))
-        rel_pose = T.pose_in_A_to_pose_in_B(body_pose, world_pose_in_ref)
-        rel_pos, rel_quat = T.mat2pose(rel_pose)
-        return rel_pos, rel_quat
-
-
-    def _get_observation(self):
-        di = SawyerEnv._get_observation(self)
-        if self.use_object_obs:
-
-            # include coffee pod pose relative to eef and pod pose relative to pod holder
-
-            # for conversion to relative gripper frame
-            gripper_pose = T.pose2mat((di["eef_pos"], di["eef_quat"]))
-            world_pose_in_gripper = T.pose_inv(gripper_pose)
-
-            pod_eef_rel_pos, pod_eef_rel_quat = self._rel_pose_for_key("coffee_pod", world_pose_in_ref=world_pose_in_gripper)
-            pod_eef_rel_quat_col = T.quat2col(pod_eef_rel_quat)
-
-            # for conversion to relative pod holder frame
-            body_id = self.object_body_ids["coffee_pod_holder"]
-            body_pos = np.array(self.sim.data.body_xpos[body_id])
-            body_quat = T.convert_quat(
-                np.array(self.sim.data.body_xquat[body_id]), to="xyzw"
-            )
-            pod_holder_pose = T.pose2mat((body_pos, body_quat))
-            world_pose_in_pod_holder = T.pose_inv(pod_holder_pose)
-
-            pod_hold_rel_pos, pod_hold_rel_quat = self._rel_pose_for_key("coffee_pod", world_pose_in_ref=world_pose_in_pod_holder)
-            pod_hold_rel_quat_col = T.quat2col(pod_hold_rel_quat)
-
-            # add hinge angle of lid
-            di["hinge_angle"] = np.array([self.sim.data.qpos[self.hinge_qpos_addr]])
-
-            di["object-state"] = np.concatenate([
-                pod_eef_rel_pos,
-                pod_eef_rel_quat,
-                pod_hold_rel_pos,
-                pod_hold_rel_quat,
-                di["hinge_angle"],
-            ])
-
-            di["object-state-col"] = np.concatenate([
-                pod_eef_rel_pos,
-                pod_eef_rel_quat_col,
-                pod_hold_rel_pos,
-                pod_hold_rel_quat_col,
-                di["hinge_angle"],
-            ])
-
-        return di
-
-
-class SawyerCoffeeMinimal2(SawyerCoffee):
-    """
-    Observation space is 
-    [
-        coffee pod pose in eef frame, 
-        coffee pod pose in eef frame, 
-        hinge angle,
-    ]
-    """
-    def _get_observation(self):
-        di = super()._get_observation()
-        if self.use_object_obs:
-            # replace object-state with a minimal version of super-class object-state (just relative info)
-            di["object-state"] = np.concatenate([
-                di["coffee_pod_to_eef_pos"],
-                di["coffee_pod_to_eef_quat"],
-                di["coffee_pod_holder_to_eef_pos"],
-                di["coffee_pod_holder_to_eef_quat"],
-                di["hinge_angle"],
-            ])
-            
-            di["object-state-col"] = np.concatenate([
-                di["coffee_pod_to_eef_pos"],
-                di["coffee_pod_to_eef_quat_col"],
-                di["coffee_pod_holder_to_eef_pos"],
-                di["coffee_pod_holder_to_eef_quat_col"],
-                di["hinge_angle"],
-            ])
-
-        return di
-
-
-class SawyerCoffeeMinimalContact(SawyerCoffeeMinimal):
-    """
-    Observation space is 
-    [
-        coffee pod pose in eef frame, 
-        coffee pod pose in pod container frame, 
-        hinge angle,
-        contact indicators for pod, pod-holder, and robot pairwise contact,
-    ]
-    """
-    def _get_reference(self):
-        super()._get_reference()        
-        self.pod_geom_id = self.sim.model.geom_name2id("coffee_pod")
-        pod_holder_geom_names = ["coffee_machine_4_0_{}".format(i) for i in range(64)]
-        self.pod_holder_geom_ids = [self.sim.model.geom_name2id(x) for x in pod_holder_geom_names]
-        self.eef_geom_ids = [self.sim.model.geom_name2id(x) for x in self.gripper.contact_geoms()]
-
-    def _get_observation(self):
-        di = super()._get_observation()
-        if self.use_object_obs:
-
-            # check contacts
-            robot_and_pod_contact = 0
-            robot_and_pod_holder_contact = 0
-            pod_and_pod_holder_contact = 0
-            for contact in self.sim.data.contact[: self.sim.data.ncon]:
-                if (
-                    ((contact.geom1 in self.eef_geom_ids) and (contact.geom2 == self.pod_geom_id)) or
-                    ((contact.geom2 in self.eef_geom_ids) and (contact.geom1 == self.pod_geom_id))
-                ):
-                    robot_and_pod_contact = 1
-                elif(
-                    ((contact.geom1 in self.eef_geom_ids) and (contact.geom2 in self.pod_holder_geom_ids)) or
-                    ((contact.geom2 in self.eef_geom_ids) and (contact.geom1 in self.pod_holder_geom_ids))
-                ):
-                    robot_and_pod_holder_contact = 1
-                elif(
-                    ((contact.geom1 == self.pod_geom_id) and (contact.geom2 in self.pod_holder_geom_ids)) or
-                    ((contact.geom2 == self.pod_geom_id) and (contact.geom1 in self.pod_holder_geom_ids))
-                ):
-                    pod_and_pod_holder_contact = 1
-
-            # add in contact observations
-            di["object-state"] = np.concatenate([
-                di["object-state"],
-                [robot_and_pod_contact, robot_and_pod_holder_contact, pod_and_pod_holder_contact],
-            ])
-            di["object-state-col"] = np.concatenate([
-                di["object-state-col"],
-                [robot_and_pod_contact, robot_and_pod_holder_contact, pod_and_pod_holder_contact],
-            ])
-        return di
 

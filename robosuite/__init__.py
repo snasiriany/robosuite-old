@@ -23,6 +23,7 @@ from robosuite.environments.panda_lift import PandaLift
 from robosuite.environments.panda_stack import PandaStack
 from robosuite.environments.panda_pick_place import PandaPickPlace
 from robosuite.environments.panda_nut_assembly import PandaNutAssembly
+from robosuite.environments.panda_coffee import PandaCoffee
 
 from robosuite.environments.baxter_lift import BaxterLift
 from robosuite.environments.baxter_peg_in_hole import BaxterPegInHole
