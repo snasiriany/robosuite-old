@@ -8,6 +8,7 @@ import time
 import numpy as np
 
 from robosuite.wrappers import Wrapper
+from robosuite.utils.mjcf_utils import save_sim_model
 
 
 class DataCollectionWrapper(Wrapper):
@@ -16,10 +17,10 @@ class DataCollectionWrapper(Wrapper):
         Initializes the data collection wrapper.
 
         Args:
-            env: The environment to monitor.
-            directory: Where to store collected data.
-            collect_freq: How often to save simulation state, in terms of environment steps.
-            flush_freq: How frequently to dump data to disk, in terms of environment steps.
+            env (MujocoEnv): The environment to monitor.
+            directory (str): Where to store collected data.
+            collect_freq (int): How often to save simulation state, in terms of environment steps.
+            flush_freq (int): How frequently to dump data to disk, in terms of environment steps.
         """
         super().__init__(env)
 
@@ -46,6 +47,10 @@ class DataCollectionWrapper(Wrapper):
         # remember whether any environment interaction has occurred
         self.has_interaction = False
 
+        # some variables for remembering the current episode's initial state and model xml
+        self._current_task_instance_state = None
+        self._current_task_instance_xml = None
+
     def _start_new_episode(self):
         """
         Bookkeeping to do at the start of each new episode.
@@ -59,12 +64,27 @@ class DataCollectionWrapper(Wrapper):
         self.t = 0
         self.has_interaction = False
 
+        # save the task instance (will be saved on the first env interaction)
+        self._current_task_instance_xml = self.env.sim.model.get_xml()
+        self._current_task_instance_state = np.array(self.env.sim.get_state().flatten())
+
+        # trick for ensuring that we can play MuJoCo demonstrations back
+        # deterministically by using the recorded actions open loop
+        self.env.reset_from_xml_string(self._current_task_instance_xml)
+        self.env.sim.reset()
+        self.env.sim.set_state_from_flattened(self._current_task_instance_state)
+        self.env.sim.forward()
+
+
     def _on_first_interaction(self):
         """
         Bookkeeping for first timestep of episode.
         This function is necessary to make sure that logging only happens after the first
         step call to the simulation, instead of on the reset (people tend to call
         reset more than is necessary in code).
+
+        Raises:
+            AssertionError: [Episode path already exists]
         """
 
         self.has_interaction = True
@@ -78,7 +98,12 @@ class DataCollectionWrapper(Wrapper):
 
         # save the model xml
         xml_path = os.path.join(self.ep_directory, "model.xml")
-        self.env.model.save_model(xml_path)
+        with open(xml_path, "w") as f:
+            f.write(self._current_task_instance_xml)
+
+        # save initial state and action
+        assert len(self.states) == 0
+        self.states.append(self._current_task_instance_state)
 
     def _flush(self):
         """
@@ -100,11 +125,31 @@ class DataCollectionWrapper(Wrapper):
         self.action_infos = []
 
     def reset(self):
+        """
+        Extends vanilla reset() function call to accommodate data collection
+
+        Returns:
+            OrderedDict: Environment observation space after reset occurs
+        """
         ret = super().reset()
         self._start_new_episode()
         return ret
 
-    def step(self, action):
+    def step(self, action, action_mode=-1):
+        """
+        Extends vanilla step() function call to accommodate data collection
+
+        Args:
+            action (np.array): Action to take in environment
+
+        Returns:
+            4-tuple:
+
+                - (OrderedDict) observations from the environment
+                - (float) reward from the environment
+                - (bool) whether the current episode is completed or not
+                - (dict) misc information
+        """
         ret = super().step(action)
         self.t += 1
 
@@ -118,8 +163,8 @@ class DataCollectionWrapper(Wrapper):
             self.states.append(state)
 
             info = {}
-            info["joint_torques"] = np.array(self.env.torques)
-            info["gripper_actuation"] = np.array(action[self.env.mujoco_robot.dof :])
+            info["actions"] = np.array(action)
+            info["action_modes"] = action_mode
             self.action_infos.append(info)
 
         # flush collected data to disk if necessary
@@ -132,5 +177,6 @@ class DataCollectionWrapper(Wrapper):
         """
         Override close method in order to flush left over data
         """
-        self._start_new_episode()
+        if self.has_interaction:
+            self._flush()
         self.env.close()

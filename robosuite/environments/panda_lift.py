@@ -116,7 +116,7 @@ class PandaLift(PandaEnv):
 
         # Load the default controller if none is specified
         if not controller_config:
-            controller_path = os.path.join(os.path.dirname(__file__), '..', 'controllers/config/default_panda.json')
+            controller_path = os.path.join(os.path.dirname(__file__), '..', 'controllers/config/ee_pos_ori.json')
             controller_config = load_controller_config(custom_fpath=controller_path)
 
         # Assert that the controller config is a dict file

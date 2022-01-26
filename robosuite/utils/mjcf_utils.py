@@ -335,4 +335,15 @@ class CustomMaterial(object):
             # Link this texture file to the default texture dict
             self.tex_attrib["file"] = fpath
 
+def save_sim_model(sim, fname):
+    """
+    Saves the current model xml from @sim at file location @fname.
+
+    Args:
+        sim (MjSim): XML file to save, in string form
+        fname (str): Absolute filepath to the location to save the file
+    """
+    with open(fname, "w") as f:
+        sim.save(file=f, format="xml")
+
 

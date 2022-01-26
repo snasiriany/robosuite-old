@@ -22,6 +22,8 @@ from robosuite.wrappers import DataCollectionWrapper
 
 from robosuite.devices import *
 
+import json
+
 from robosuite.controllers import load_controller_config
 
 
@@ -83,22 +85,22 @@ def collect_human_trajectory(env, device):
 
         obs, reward, done, info = env.step(action)
 
-        if is_first:
-            is_first = False
-
-            # We grab the initial model xml and state and reload from those so that
-            # we can support deterministic playback of actions from our demonstrations.
-            # This is necessary due to rounding issues with the model xml and with
-            # env.sim.forward(). We also have to do this after the first action is 
-            # applied because the data collector wrapper only starts recording
-            # after the first action has been played.
-            initial_mjstate = env.sim.get_state().flatten()
-            xml_str = env.model.get_xml()
-            env.reset_from_xml_string(xml_str)
-            env.sim.reset()
-            env.sim.set_state_from_flattened(initial_mjstate)
-            env.sim.forward()
-            env.viewer.set_camera(camera_id=2)
+        # if is_first:
+        #     is_first = False
+        #
+        #     # We grab the initial model xml and state and reload from those so that
+        #     # we can support deterministic playback of actions from our demonstrations.
+        #     # This is necessary due to rounding issues with the model xml and with
+        #     # env.sim.forward(). We also have to do this after the first action is
+        #     # applied because the data collector wrapper only starts recording
+        #     # after the first action has been played.
+        #     initial_mjstate = env.sim.get_state().flatten()
+        #     xml_str = env.model.get_xml()
+        #     env.reset_from_xml_string(xml_str)
+        #     env.sim.reset()
+        #     env.sim.set_state_from_flattened(initial_mjstate)
+        #     env.sim.forward()
+        #     env.viewer.set_camera(camera_id=2)
 
         env.render()
 
@@ -119,11 +121,10 @@ def collect_human_trajectory(env, device):
     env.close()
 
 
-def gather_demonstrations_as_hdf5(directory, out_dir):
+def gather_demonstrations_as_hdf5(directory, out_dir, env_info, excluded_episodes=None, meta_data=None):
     """
     Gathers the demonstrations saved in @directory into a
-    single hdf5 file, and another directory that contains the 
-    raw model.xml files.
+    single hdf5 file.
 
     The strucure of the hdf5 file is as follows.
 
@@ -134,35 +135,22 @@ def gather_demonstrations_as_hdf5(directory, out_dir):
         env (attribute) - environment name on which demos were collected
 
         demo1 (group) - every demonstration has a group
-            model_file (attribute) - name of corresponding model xml in `models` directory
+            model_file (attribute) - model xml string for demonstration
             states (dataset) - flattened mujoco states
-            joint_velocities (dataset) - joint velocities applied during demonstration
-            gripper_actuations (dataset) - gripper controls applied during demonstration
-            right_dpos (dataset) - end effector delta position command for
-                single arm robot or right arm
-            right_dquat (dataset) - end effector delta rotation command for
-                single arm robot or right arm
-            left_dpos (dataset) - end effector delta position command for
-                left arm (bimanual robot only)
-            left_dquat (dataset) - end effector delta rotation command for
-                left arm (bimanual robot only)
+            actions (dataset) - actions applied during demonstration
 
         demo2 (group)
         ...
 
     Args:
         directory (str): Path to the directory containing raw demonstrations.
-        out_dir (str): Path to where to store the hdf5 file and model xmls. 
-            The model xmls will be stored in a subdirectory called `models`.
+        out_dir (str): Path to where to store the hdf5 file.
+        env_info (str): JSON-encoded string containing environment information,
+            including controller and robot info
     """
 
-    # store model xmls in this directory
-    model_dir = os.path.join(out_dir, "models")
-    if os.path.isdir(model_dir):
-        shutil.rmtree(model_dir)
-    os.makedirs(model_dir)
-
     hdf5_path = os.path.join(out_dir, "demo.hdf5")
+    print("Saving hdf5 to", hdf5_path)
     f = h5py.File(hdf5_path, "w")
 
     # store some metadata in the attributes of one group
@@ -172,15 +160,15 @@ def gather_demonstrations_as_hdf5(directory, out_dir):
     env_name = None  # will get populated at some point
 
     for ep_directory in os.listdir(directory):
+        # print("Processing {} ...".format(ep_directory))
+        if (excluded_episodes is not None) and (ep_directory in excluded_episodes):
+            # print("\tExcluding this episode!")
+            continue
 
         state_paths = os.path.join(directory, ep_directory, "state_*.npz")
         states = []
-        joint_velocities = []
-        gripper_actuations = []
-        right_dpos = []
-        right_dquat = []
-        left_dpos = []
-        left_dquat = []
+        actions = []
+        action_modes = []
 
         for state_file in sorted(glob(state_paths)):
             dic = np.load(state_file, allow_pickle=True)
@@ -188,50 +176,35 @@ def gather_demonstrations_as_hdf5(directory, out_dir):
 
             states.extend(dic["states"])
             for ai in dic["action_infos"]:
-                joint_velocities.append(ai["joint_velocities"])
-                gripper_actuations.append(ai["gripper_actuation"])
-                right_dpos.append(ai.get("right_dpos", []))
-                right_dquat.append(ai.get("right_dquat", []))
-                left_dpos.append(ai.get("left_dpos", []))
-                left_dquat.append(ai.get("left_dquat", []))
-                
+                actions.append(ai["actions"])
+                action_modes.append(ai["action_modes"])
+
         if len(states) == 0:
             continue
 
-        # Delete the first actions and the last state. This is because when the DataCollector wrapper
-        # recorded the states and actions, the states were recorded AFTER playing that action.
+        # Delete the last state. This is because when the DataCollector wrapper
+        # recorded the states and actions, the states were recorded AFTER playing that action,
+        # so we end up with an extra state at the end.
         del states[-1]
-        del joint_velocities[0]
-        del gripper_actuations[0]
-        del right_dpos[0]
-        del right_dquat[0]
-        del left_dpos[0]
-        del left_dquat[0]
+        assert len(states) == len(actions)
 
         num_eps += 1
         ep_data_grp = grp.create_group("demo_{}".format(num_eps))
 
-        # store model file name as an attribute
-        ep_data_grp.attrs["model_file"] = "model_{}.xml".format(num_eps)
+        # store model xml as an attribute
+        xml_path = os.path.join(directory, ep_directory, "model.xml")
+        with open(xml_path, "r") as f:
+            xml_str = f.read()
+        ep_data_grp.attrs["model_file"] = xml_str
 
         # write datasets for states and actions
         ep_data_grp.create_dataset("states", data=np.array(states))
-        ep_data_grp.create_dataset("joint_velocities", data=np.array(joint_velocities))
-        ep_data_grp.create_dataset(
-            "gripper_actuations", data=np.array(gripper_actuations)
-        )
-        ep_data_grp.create_dataset("right_dpos", data=np.array(right_dpos))
-        ep_data_grp.create_dataset("right_dquat", data=np.array(right_dquat))
-        ep_data_grp.create_dataset("left_dpos", data=np.array(left_dpos))
-        ep_data_grp.create_dataset("left_dquat", data=np.array(left_dquat))
+        ep_data_grp.create_dataset("actions", data=np.array(actions))
+        ep_data_grp.create_dataset("action_modes", data=np.array(action_modes))
 
-        # copy over and rename model xml
-        xml_path = os.path.join(directory, ep_directory, "model.xml")
-        shutil.copy(xml_path, model_dir)
-        os.rename(
-            os.path.join(model_dir, "model.xml"),
-            os.path.join(model_dir, "model_{}.xml".format(num_eps)),
-        )
+    if num_eps == 0:
+        f.close()
+        return
 
     # write dataset attributes (metadata)
     now = datetime.datetime.now()
@@ -239,6 +212,11 @@ def gather_demonstrations_as_hdf5(directory, out_dir):
     grp.attrs["time"] = "{}:{}:{}".format(now.hour, now.minute, now.second)
     grp.attrs["repository_version"] = robosuite.__version__
     grp.attrs["env"] = env_name
+    grp.attrs["env_info"] = env_info
+
+    if meta_data is not None:
+        for (k, v) in meta_data.items():
+            grp.attrs[k] = v
 
     f.close()
 
@@ -254,13 +232,13 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="keyboard")
     args = parser.parse_args()
 
-    controller_path = os.path.join(os.path.dirname(__file__), '..', 'controllers/config/ee_pos_ori.json')
-    controller_config = load_controller_config(custom_fpath=controller_path)
+    config = {
+        "env_name": args.environment,
+    }
 
     # create original environment
     env = robosuite.make(
-        args.environment,
-        controller_config = controller_config,
+        **config,
         ignore_done=True,
         use_camera_obs=False,
         has_renderer=True,
@@ -268,8 +246,11 @@ if __name__ == "__main__":
         gripper_visualization=True,
     )
 
-    # # enable controlling the end effector directly instead of using joint velocities
-    # env = IKWrapper(env)
+    # # Wrap this with visualization wrapper
+    # env = VisualizationWrapper(env)
+
+    # Grab reference to controller config and convert it to json-encoded string
+    env_info = json.dumps(config)
 
     # wrap the environment with data collection wrapper
     tmp_directory = "/tmp/{}".format(str(time.time()).replace(".", "_"))
@@ -300,4 +281,4 @@ if __name__ == "__main__":
     # collect demonstrations
     while True:
         collect_human_trajectory(env, device)
-        # gather_demonstrations_as_hdf5(tmp_directory, new_dir)
+        gather_demonstrations_as_hdf5(tmp_directory, new_dir, env_info)
