@@ -52,6 +52,9 @@ def collect_human_trajectory(env, device):
     reset = False
     task_completion_hold_count = -1 # counter to collect 10 timesteps after reaching goal
     device.start_control()
+
+    num_steps = 0
+
     while not reset:
         state = device.get_controller_state()
         dpos, rotation, raw_drotation, grasp, reset = (
@@ -85,6 +88,8 @@ def collect_human_trajectory(env, device):
 
         obs, reward, done, info = env.step(action)
 
+        num_steps += 1
+
         # if is_first:
         #     is_first = False
         #
@@ -116,7 +121,6 @@ def collect_human_trajectory(env, device):
         else:
             task_completion_hold_count = -1 # null the counter if there's no success
 
-    print()
     # cleanup for end of data collection episodes
     env.close()
 
@@ -234,6 +238,7 @@ if __name__ == "__main__":
 
     config = {
         "env_name": args.environment,
+        "control_freq": 50, # 100
     }
 
     # create original environment
@@ -242,7 +247,6 @@ if __name__ == "__main__":
         ignore_done=True,
         use_camera_obs=False,
         has_renderer=True,
-        control_freq=50, #100,
         gripper_visualization=True,
     )
 
