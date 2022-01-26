@@ -880,7 +880,32 @@ class PandaThreadingRing(PandaThreadingPrecise):
         # The Panda robot has a pedestal, we want to align it with the table
         self.mujoco_arena.set_origin([0.16 + self.table_full_size[0] / 2, 0, 0])
 
-        # make a skinny threading object with a large handle
+        # camera_base_pos = np.array([0.20981070866530138, -0.463132046532888, 1.3425871137622123])
+        # camera_quat = np.array([0.9198418259620667, 0.35447001457214355, 0.0771070122718811, 0.14932067692279816])
+
+        # camera_base_pos = np.array([0.00998353261299778, -0.47144522918385057, 1.3426459201811694])
+        # camera_quat = np.array([0.9295326471328735, 0.3684060871601105, 0.011014223098754883, 0.011158718727529049])
+
+        # camera_base_pos = np.array([0.01132529618855782, -0.5463014162299753, 1.2757883094497722])
+        # camera_quat = np.array([0.8977625966072083, 0.44020068645477295, 0.011855721473693848, 0.010260309092700481])
+
+        # camera_base_pos = np.array([-0.17752073960187187, -0.5389949161814741, 1.2975418858235315])
+        # camera_quat = np.array([0.8882763981819153, 0.4161258935928345, -0.10173994302749634, -0.16569054126739502])
+
+        # camera_base_pos = np.array([-0.04442752357686919, -0.6120453272169636, 1.2674598606316807])
+        # camera_quat = np.array([0.8944291472434998, 0.44006484746932983, -0.03554832935333252, -0.07124301791191101])
+
+        camera_base_pos = np.array([-0.22374031335600292, -0.5200433508358703, 1.2953993930078418])
+        camera_quat = np.array([0.8882763981819153, 0.4161258935928345, -0.10173994302749634, -0.16569054126739502])
+
+        # Modify camera settings
+        self.mujoco_arena.set_camera(
+            camera_name="agentview",
+            pos=camera_base_pos + np.array([0.16 + self.table_full_size[0] / 2, 0, 0]),
+            quat=camera_quat
+        )
+
+    # make a skinny threading object with a large handle
         thread_size = [0.005, 0.06, 0.005]
         handle_size = [0.02, 0.02, 0.02]
         geom_sizes = [

@@ -6,6 +6,8 @@ import numpy as np
 
 import robosuite
 
+from copy import deepcopy
+
 RED = [1, 0, 0, 1]
 GREEN = [0, 1, 0, 1]
 BLUE = [0, 0, 1, 1]
@@ -347,3 +349,114 @@ def save_sim_model(sim, fname):
         sim.save(file=f, format="xml")
 
 
+def find_elements(root, tags, attribs=None, return_first=True):
+    """
+    Find all element(s) matching the requested @tag and @attributes. If @return_first is True, then will return the
+    first element found matching the criteria specified. Otherwise, will return a list of elements that match the
+    criteria.
+    Args:
+        root (ET.Element): Root of the xml element tree to start recursively searching through.
+        tags (str or list of str or set): Tag(s) to search for in this ElementTree.
+        attribs (None or dict of str): Element attribute(s) to check against for a filtered element. A match is
+            considered found only if all attributes match. Each attribute key should have a corresponding value with
+            which to compare against.
+        return_first (bool): Whether to immediately return once the first matching element is found.
+    Returns:
+        None or ET.Element or list of ET.Element: Matching element(s) found. Returns None if there was no match.
+    """
+    # Initialize return value
+    elements = None if return_first else []
+
+    # Make sure tags is list
+    tags = [tags] if type(tags) is str else tags
+
+    # Check the current element for matching conditions
+    if root.tag in tags:
+        matching = True
+        if attribs is not None:
+            for k, v in attribs.items():
+                if root.get(k) != v:
+                    matching = False
+                    break
+        # If all criteria were matched, add this to the solution (or return immediately if specified)
+        if matching:
+            if return_first:
+                return root
+            else:
+                elements.append(root)
+    # Continue recursively searching through the element tree
+    for r in root:
+        if return_first:
+            elements = find_elements(tags=tags, attribs=attribs, root=r, return_first=return_first)
+            if elements is not None:
+                return elements
+        else:
+            found_elements = find_elements(tags=tags, attribs=attribs, root=r, return_first=return_first)
+            pre_elements = deepcopy(elements)
+            if found_elements:
+                elements += found_elements if type(found_elements) is list else [found_elements]
+
+    return elements if elements else None
+
+
+def new_element(tag, name, **kwargs):
+    """
+    Creates a new @tag element with attributes specified by @**kwargs.
+    Args:
+        tag (str): Type of element to create
+        name (None or str): Name for this element. Should only be None for elements that do not have an explicit
+            name attribute (e.g.: inertial elements)
+        **kwargs: Specified attributes for the new joint
+    Returns:
+        ET.Element: new specified xml element
+    """
+    # Name will be set if it's not None
+    if name is not None:
+        kwargs["name"] = name
+    # Loop through all attributes and pop any that are None, otherwise convert them to strings
+    for k, v in kwargs.copy().items():
+        if v is None:
+            kwargs.pop(k)
+        else:
+            kwargs[k] = convert_to_string(v)
+    element = ET.Element(tag, attrib=kwargs)
+    return element
+
+
+def convert_to_string(inp):
+    """
+    Converts any type of {bool, int, float, list, tuple, array, string, np.str_} into an mujoco-xml compatible string.
+        Note that an input string / np.str_ results in a no-op action.
+    Args:
+        inp: Input to convert to string
+    Returns:
+        str: String equivalent of @inp
+    """
+    if type(inp) in {list, tuple, np.ndarray}:
+        return array_to_string(inp)
+    elif type(inp) in {int, float, bool}:
+        return str(inp).lower()
+    elif type(inp) in {str, np.str_}:
+        return inp
+    else:
+        raise ValueError("Unsupported type received: got {}".format(type(inp)))
+
+
+def find_parent(root, child):
+    """
+    Find the parent element of the specified @child node, recurisvely searching through @root.
+    Args:
+        root (ET.Element): Root of the xml element tree to start recursively searching through.
+        child (ET.Element): Child element whose parent is to be found
+    Returns:
+        None or ET.Element: Matching parent if found, else None
+    """
+    # Iterate through children (DFS), if the correct child element is found, then return the current root as the parent
+    for r in root:
+        if r == child:
+            return root
+        parent = find_parent(root=r, child=child)
+        if parent is not None:
+            return parent
+    # If we get here, we didn't find anything ):
+    return None
