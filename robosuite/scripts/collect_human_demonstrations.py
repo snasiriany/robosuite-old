@@ -238,7 +238,7 @@ if __name__ == "__main__":
 
     config = {
         "env_name": args.environment,
-        "control_freq": 50, # 100
+        "control_freq": 20, # 100
     }
 
     # create original environment
