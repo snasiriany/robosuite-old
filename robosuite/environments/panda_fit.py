@@ -895,8 +895,13 @@ class PandaThreadingRing(PandaThreadingPrecise):
         # camera_base_pos = np.array([-0.04442752357686919, -0.6120453272169636, 1.2674598606316807])
         # camera_quat = np.array([0.8944291472434998, 0.44006484746932983, -0.03554832935333252, -0.07124301791191101])
 
-        camera_base_pos = np.array([-0.22374031335600292, -0.5200433508358703, 1.2953993930078418])
-        camera_quat = np.array([0.8882763981819153, 0.4161258935928345, -0.10173994302749634, -0.16569054126739502])
+        # camera_base_pos = np.array([-0.22374031335600292, -0.5200433508358703, 1.2953993930078418])
+        # camera_quat = np.array([0.8882763981819153, 0.4161258935928345, -0.10173994302749634, -0.16569054126739502])
+
+
+        #### new settings
+        camera_base_pos = np.array([0.44003286046249834, -0.533285528121969, 1.1757519130788487])
+        camera_quat = np.array([0.7800014019012451, 0.4778038263320923, 0.15689003467559814, 0.3724067509174347])
 
         # Modify camera settings
         self.mujoco_arena.set_camera(
@@ -1130,7 +1135,10 @@ class PandaCircus(PandaThreadingRing):
             # z_rotation=(np.pi / 3., np.pi / 3.),
             x_range=(-0.1, 0.15),
             y_range=(-0.2, -0.1),
-            z_rotation=(np.pi / 6., np.pi / 2.),
+            # z_rotation=(np.pi / 6., np.pi / 2.),
+
+            z_rotation=(-np.pi / 2., -np.pi / 6.),
+
             z_offset=0.001, 
             ensure_object_boundary_in_range=False,
         )
@@ -1142,7 +1150,8 @@ class PandaCircus(PandaThreadingRing):
             # z_rotation=(-np.pi / 2.),
             x_range=[-0.2, -0.05],
             y_range=[0.15, 0.25],
-            z_rotation=(-2. * np.pi / 3., -np.pi / 3.),
+            # z_rotation=(-2. * np.pi / 3., -np.pi / 3.),
+            z_rotation=(np.pi / 3., 2. * np.pi / 3.),
             ensure_object_boundary_in_range=False,
         )
         return initializer
