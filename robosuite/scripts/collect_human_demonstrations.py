@@ -238,8 +238,8 @@ if __name__ == "__main__":
     env_info = json.dumps(config)
 
     # wrap the environment with data collection wrapper
-    tmp_directory = "/tmp/{}".format(str(time.time()).replace(".", "_"))
-    env = DataCollectionWrapper(env, tmp_directory)
+    #tmp_directory = "/tmp/{}".format(str(time.time()).replace(".", "_"))
+    #env = DataCollectionWrapper(env, tmp_directory)
 
     # initialize device
     if args.device == "keyboard":
@@ -259,11 +259,11 @@ if __name__ == "__main__":
         )
 
     # make a new timestamped directory
-    t1, t2 = str(time.time()).split(".")
-    new_dir = os.path.join(args.directory, "{}_{}".format(t1, t2))
-    os.makedirs(new_dir)
+    #t1, t2 = str(time.time()).split(".")
+    #new_dir = os.path.join(args.directory, "{}_{}".format(t1, t2))
+    #os.makedirs(new_dir)
 
     # collect demonstrations
     while True:
         collect_human_trajectory(env, device, args.arm, args.config)
-        gather_demonstrations_as_hdf5(tmp_directory, new_dir, env_info)
+        #gather_demonstrations_as_hdf5(tmp_directory, new_dir, env_info)
