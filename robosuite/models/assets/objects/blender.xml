@@ -1,13 +1,35 @@
 <mujoco model="blender">
   <asset>
-    <mesh file="meshes/blender.stl" name="blender_mesh" scale="0.04 0.04 0.04"/>
-    <texture file="../textures/can.png" name="tex-can"/>
+    <mesh file="meshes/blender.stl" name="blender_vis" scale="0.04 0.04 0.04"/>
+    <mesh file="meshes/blender_collision.stl" name="blender" scale="0.04 0.04 0.04"/>
+    <mesh file="meshes/blender_bb.stl" name="blender_bb" scale="0.04 0.04 0.04"/>
+    
+    <texture file="../textures/light-wood.png" name="tex-can"/>
     <material name="coke" reflectance="0.7" texrepeat="5 5" texture="tex-can" texuniform="true"/>
   </asset>
   <worldbody>
     <body>
       <body name="object">
-        <geom pos="0 0 0" mesh="blender_mesh" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="coke" group="0" condim="4"/>
+        <!-- <geom pos="0 0 0" mesh="blender_mesh" type="mesh" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" material="coke" group="0" condim="4"/> -->
+      
+        <!-- <geom type="mesh" conaffinity="0" contype="0"  group="1" mesh="blender_vis" name="blender_visual" material="coke" /> -->
+        <geom type="mesh" group="0" mesh="blender" name="blender_collision" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0.8 0.8 0.8 0.3"/>
+        <geom type="mesh" conaffinity="0" contype="0"  group="1" mesh="blender_bb" name="blender_boundingbox" rgba="0.8 0.8 0.8 0.1" />
+        
+        <!-- <site rgba="0 0 0 0.5" pos="-0.03434571 -0.02611438 -0.01880466" size="0.01" name="p0"/>
+        <site rgba="1 0 0 0.5" pos="-0.0182326  -0.05771369 -0.02485033" size="0.01" name="p1"/>
+        <site rgba="0 1 0 0.5" pos="-0.04907719 -0.03948005  0.01179175" size="0.01" name="p2"/>
+        <site rgba="0 0 1 0.5" pos="-0.09230882 -0.04846361 -0.05647557" size="0.01" name="p3"/> -->
+        
+        <site rgba="1 1 0 0.5" pos="0.02223575  0.04119983 -0.00568448" size="0.005" name="c1"/>
+        <site rgba="1 1 0 0.5" pos="-0.09369046 -0.00349863 -0.0810263" size="0.005" name="c2"/>
+        <site rgba="1 1 0 0.5" pos="-0.0072272   0.01446849  0.05550833" size="0.005" name="c3"/>
+        <site rgba="1 1 0 0.5" pos="-0.12315341 -0.03022996 -0.01983349" size="0.005" name="c4"/>
+        <site rgba="1 1 0 0.5" pos="0.05446199 -0.0219988  -0.01777583" size="0.005" name="c5"/>
+        <site rgba="1 1 0 0.5" pos="-0.06146422 -0.06669725 -0.09311765" size="0.005" name="c6"/>
+        <site rgba="1 1 0 0.5" pos="0.02499903 -0.04873013  0.04341698" size="0.005" name="c7"/>
+        <site rgba="1 1 0 0.5" pos="-0.09092718 -0.09342859 -0.03192484" size="0.005" name="c8"/>
+        
       </body>
       <site rgba="0 0 0 0" size="0.005" pos="0 0 -0.06" name="bottom_site"/>
       <site rgba="0 0 0 0" size="0.005" pos="0 0 0.04" name="top_site"/>
