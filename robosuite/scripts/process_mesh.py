@@ -6,26 +6,29 @@ import robosuite
 
 import xml.etree.ElementTree as ET
 
-def generate_meshes_and_bb(model_path, show, scaling):
+from robosuite.scripts.convert_obj_to_msh import generate_msh_file
+
+def generate_meshes_and_bb(model_path, scaling, show_meshes=False):
     _, type = get_model_name_and_type(model_path)
-    assert type == 'stl'
+    assert type in ['obj', 'stl']
     
     # load input mesh
     resolver = trimesh.resolvers.FilePathResolver(os.path.dirname(model_path))
     model = trimesh.load(model_path, resolver=resolver)
-
-    # generate meshes
-    vis_mesh = model
-    coll_mesh = model.convex_hull
-    bb_mesh = coll_mesh.bounding_box_oriented
     
     # set mesh paths
     assert model_path
-    vis_mesh_path = model_path
+    vis_mesh_path = model_path[:-len(type)-1] + '_vis.msh'
     coll_mesh_path = model_path[:-len(type)-1] + '_coll.stl'
     bb_mesh_path = model_path[:-len(type)-1] + '_bb.stl'
     
+    # generate meshes
+    vis_mesh = generate_msh_file(model_path, vis_mesh_path)
+    coll_mesh = model.convex_hull
+    bb_mesh = coll_mesh.bounding_box_oriented
+    
     # save meshes
+    # vis_mesh.export(vis_mesh_path)
     coll_mesh.export(coll_mesh_path)
     bb_mesh.export(bb_mesh_path)
 
@@ -52,7 +55,7 @@ def generate_meshes_and_bb(model_path, show, scaling):
         print("corner {}:".format(i+1), p * scaling)
 
     # display the visual mesh, convex hull mesh, and bounding box
-    if show:
+    if show_meshes:
         vis_mesh.show()
         coll_mesh.show()
         (coll_mesh + bb_mesh).show()
@@ -74,7 +77,7 @@ def get_model_name_and_type(model_path):
     return split_name[0], split_name[1]
     
 
-def generate_object_xml(model_path, info):
+def generate_object_xml(model_path, info, show_all_meshes_in_xml):
     base_path = os.path.abspath(os.path.join(os.path.dirname(robosuite.__file__), os.pardir))
     xml_base_path = os.path.join(base_path, 'robosuite/models/assets/objects')
     
@@ -96,9 +99,23 @@ def generate_object_xml(model_path, info):
         
     worldbody = root.find('worldbody')
     body = worldbody.find('body').find('body')
+    bb_geom = None
     for geom in body.iter('geom'):
         for k in ['mesh', 'name']:
             geom.attrib[k] = geom.attrib[k].replace('template', name)
+            
+        if geom.attrib['name'].endswith('_boundingbox'):
+            bb_geom = geom
+            
+        if show_all_meshes_in_xml:
+            if geom.attrib['name'].endswith('_collision'):
+                geom.attrib['rgba'] = "0.8 0.8 0.8 0.2"
+            elif geom.attrib['name'].endswith('_boundingbox'):
+                geom.attrib['rgba'] = "0.8 0.8 0.8 0.05"
+    
+    # delete bounding box mesh, not needed
+    if not show_all_meshes_in_xml:
+        body.remove(bb_geom)
     
     # save xml for new model
     tree.write(
@@ -108,9 +125,18 @@ def generate_object_xml(model_path, info):
     
 
 # input args
-model_path = '/Users/soroushnasiriany/research/robosuite/robosuite/models/assets/objects/meshes/blender/blender.stl'
-show = False
-scaling = 0.04
+# model_path = '/Users/soroushnasiriany/research/robosuite/robosuite/models/assets/objects/meshes/blender/blender.stl'
 
-info = generate_meshes_and_bb(model_path, show, scaling)
-generate_object_xml(model_path, info)
+# obj_name = 'blender'; scaling = 0.04
+# obj_name = 'mug'; scaling = 0.40
+obj_name = 'spoon'; scaling = 0.04
+
+show_meshes = False
+show_all_meshes_in_xml = False
+
+base_path = os.path.abspath(os.path.join(os.path.dirname(robosuite.__file__), os.pardir))
+mesh_base_path = os.path.join(base_path, 'robosuite/models/assets/objects/meshes')
+model_path = os.path.join(mesh_base_path, obj_name, '{}.obj'.format(obj_name))
+
+info = generate_meshes_and_bb(model_path, scaling, show_meshes)
+generate_object_xml(model_path, info, show_all_meshes_in_xml)

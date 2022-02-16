@@ -306,9 +306,9 @@ class BlenderObject(MujocoXMLObject):
     Blender object (used in BlenderPlay)
     """
 
-    def __init__(self, name):
+    def __init__(self, name, obj_name):
         super().__init__(
-            xml_path_completion("objects/blender.xml"),
+            xml_path_completion("objects/{}.xml".format(obj_name)),
             name=name,
             joints=[dict(type="free", damping="0.0005")],
             obj_type="all",

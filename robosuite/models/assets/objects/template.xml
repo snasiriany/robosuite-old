@@ -1,6 +1,6 @@
 <mujoco model="template">
   <asset>
-    <mesh file="meshes/template/template.stl" name="template_vis" scale="1.0 1.0 1.0"/>
+    <mesh file="meshes/template/template_vis.msh" name="template_vis" scale="1.0 1.0 1.0"/>
     <mesh file="meshes/template/template_coll.stl" name="template_coll" scale="1.0 1.0 1.0"/>
     <mesh file="meshes/template/template_bb.stl" name="template_bb" scale="1.0 1.0 1.0"/>
   </asset>
@@ -8,8 +8,8 @@
     <body>
       <body name="object">      
         <geom type="mesh" conaffinity="0" contype="0"  group="1" mesh="template_vis" name="template_visual"/>
-        <geom type="mesh" group="0" mesh="template_coll" name="template_collision" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0.8 0.8 0.8 0.3"/>
-        <geom type="mesh" conaffinity="0" contype="0"  group="1" mesh="template_bb" name="template_boundingbox" rgba="0.8 0.8 0.8 0.1" />
+        <geom type="mesh" group="0" mesh="template_coll" name="template_collision" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" conaffinity="0" contype="0"  group="1" mesh="template_bb" name="template_boundingbox" rgba="0.8 0.8 0.8 0.0" />
       </body>
       <site rgba="0 0 0 0" size="0.005" pos="0 0 -0.06" name="bottom_site"/>
       <site rgba="0 0 0 0" size="0.005" pos="0 0 0.04" name="top_site"/>

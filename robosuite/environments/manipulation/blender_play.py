@@ -44,6 +44,7 @@ class BlenderPlay(SingleArmEnv):
         camera_segmentations=None,  # {None, instance, class, element}
         renderer="mujoco",
         renderer_config=None,
+        obj_name="template",
     ):
         # settings for table top
         self.table_full_size = table_full_size
@@ -59,6 +60,8 @@ class BlenderPlay(SingleArmEnv):
 
         # object placement initializer
         self.placement_initializer = placement_initializer
+        
+        self._obj_name = obj_name
 
         super().__init__(
             robots=robots,
@@ -135,7 +138,7 @@ class BlenderPlay(SingleArmEnv):
         #     rgba=[1, 0, 0, 1],
         #     material=redwood,
         # )
-        self.blender_obj = BlenderObject(name="BlenderObj")
+        self.blender_obj = BlenderObject(name="BlenderObj", obj_name=self._obj_name)
 
         # Create placement initializer
         if self.placement_initializer is not None:
