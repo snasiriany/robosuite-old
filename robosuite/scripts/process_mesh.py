@@ -3,12 +3,13 @@ import trimesh
 import os
 import itertools
 import robosuite
+import argparse
 
 import xml.etree.ElementTree as ET
 
 from robosuite.scripts.convert_obj_to_msh import generate_msh_file
 
-def generate_meshes_and_bb(model_path, scaling, show_meshes=False):
+def generate_meshes_and_bb(model_path, scaling, show_meshes=False, verbose=False):
     _, type = get_model_name_and_type(model_path)
     assert type in ['obj', 'stl']
     
@@ -39,20 +40,25 @@ def generate_meshes_and_bb(model_path, scaling, show_meshes=False):
     center = transform[:-1,3]
     rot = transform[:3,:3]
 
-    print("center:", center * scaling)
+    if verbose:
+        print("center:", center * scaling)
 
     # get the axes
-    print()
+    if verbose:
+        print()
     axes = []
     for i in range(3):
         axes.append(rot[:,i] * ext[i] / 2)
-        print("axis {}:".format(i+1), (axes[i] + center) * scaling)
+        if verbose:
+            print("axis {}:".format(i+1), (axes[i] + center) * scaling)
 
     # get the bounding box corners
-    print()
+    if verbose:
+        print()
     for i, (m0, m1, m2) in enumerate(itertools.product(*[[-1, 1], [-1, 1], [-1, 1]])):
         p = center + (axes[0] * m0) + (axes[1] * m1) + (axes[2] * m2)
-        print("corner {}:".format(i+1), p * scaling)
+        if verbose:
+            print("corner {}:".format(i+1), p * scaling)
 
     # display the visual mesh, convex hull mesh, and bounding box
     if show_meshes:
@@ -77,7 +83,7 @@ def get_model_name_and_type(model_path):
     return split_name[0], split_name[1]
     
 
-def generate_object_xml(model_path, info, show_all_meshes_in_xml):
+def generate_object_xml(model_path, info, show_all_meshes_in_xml, verbose=False):
     base_path = os.path.abspath(os.path.join(os.path.dirname(robosuite.__file__), os.pardir))
     xml_base_path = os.path.join(base_path, 'robosuite/models/assets/objects')
     
@@ -123,20 +129,46 @@ def generate_object_xml(model_path, info, show_all_meshes_in_xml):
         encoding="utf-8"
     )
     
+if __name__ == "__main__":
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--model_path",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--scale",
+        type=float,
+        default=1.0,
+    )
+    parser.add_argument(
+        "--show_meshes",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--show_all_meshes_in_xml",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+    )
+    
+    args = parser.parse_args()
+    
+    
 
-# input args
-# model_path = '/Users/soroushnasiriany/research/robosuite/robosuite/models/assets/objects/meshes/blender/blender.stl'
+    # obj_name = 'blender'; scaling = 0.04
+    # obj_name = 'mug'; scaling = 0.40
+    # obj_name = 'spoon'; scaling = 0.04
 
-# obj_name = 'blender'; scaling = 0.04
-# obj_name = 'mug'; scaling = 0.40
-obj_name = 'spoon'; scaling = 0.04
+    # show_meshes = False
+    # show_all_meshes_in_xml = False
 
-show_meshes = False
-show_all_meshes_in_xml = False
+    # base_path = os.path.abspath(os.path.join(os.path.dirname(robosuite.__file__), os.pardir))
+    # mesh_base_path = os.path.join(base_path, 'robosuite/models/assets/objects/meshes')
+    # model_path = os.path.join(mesh_base_path, obj_name, '{}.obj'.format(obj_name))
 
-base_path = os.path.abspath(os.path.join(os.path.dirname(robosuite.__file__), os.pardir))
-mesh_base_path = os.path.join(base_path, 'robosuite/models/assets/objects/meshes')
-model_path = os.path.join(mesh_base_path, obj_name, '{}.obj'.format(obj_name))
-
-info = generate_meshes_and_bb(model_path, scaling, show_meshes)
-generate_object_xml(model_path, info, show_all_meshes_in_xml)
+    info = generate_meshes_and_bb(args.model_path, args.scale, args.show_meshes, args.verbose)
+    generate_object_xml(args.model_path, info, args.show_all_meshes_in_xml, args.verbose)
