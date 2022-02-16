@@ -2,48 +2,115 @@ import numpy as np
 import trimesh
 import os
 import itertools
+import robosuite
+
+import xml.etree.ElementTree as ET
+
+def generate_meshes_and_bb(model_path, show, scaling):
+    _, type = get_model_name_and_type(model_path)
+    assert type == 'stl'
+    
+    # load input mesh
+    resolver = trimesh.resolvers.FilePathResolver(os.path.dirname(model_path))
+    model = trimesh.load(model_path, resolver=resolver)
+
+    # generate meshes
+    vis_mesh = model
+    coll_mesh = model.convex_hull
+    bb_mesh = coll_mesh.bounding_box_oriented
+    
+    # set mesh paths
+    assert model_path
+    vis_mesh_path = model_path
+    coll_mesh_path = model_path[:-len(type)-1] + '_coll.stl'
+    bb_mesh_path = model_path[:-len(type)-1] + '_bb.stl'
+    
+    # save meshes
+    coll_mesh.export(coll_mesh_path)
+    bb_mesh.export(bb_mesh_path)
+
+    # get bounding box information
+    ext = np.array(bb_mesh.primitive.extents)
+    transform = np.array(bb_mesh.primitive.transform)
+
+    center = transform[:-1,3]
+    rot = transform[:3,:3]
+
+    print("center:", center * scaling)
+
+    # get the axes
+    print()
+    axes = []
+    for i in range(3):
+        axes.append(rot[:,i] * ext[i] / 2)
+        print("axis {}:".format(i+1), (axes[i] + center) * scaling)
+
+    # get the bounding box corners
+    print()
+    for i, (m0, m1, m2) in enumerate(itertools.product(*[[-1, 1], [-1, 1], [-1, 1]])):
+        p = center + (axes[0] * m0) + (axes[1] * m1) + (axes[2] * m2)
+        print("corner {}:".format(i+1), p * scaling)
+
+    # display the visual mesh, convex hull mesh, and bounding box
+    if show:
+        vis_mesh.show()
+        coll_mesh.show()
+        (coll_mesh + bb_mesh).show()
+    
+    info = dict(
+        vis_mesh_path=vis_mesh_path,
+        coll_mesh_path=coll_mesh_path,
+        bb_mesh_path=bb_mesh_path,
+        scaling=scaling,
+        center=center,
+        axes=axes,
+    )
+    
+    return info
+    
+def get_model_name_and_type(model_path):
+    split_name = os.path.basename(model_path).split(".")
+    assert len(split_name) == 2
+    return split_name[0], split_name[1]
+    
+
+def generate_object_xml(model_path, info):
+    base_path = os.path.abspath(os.path.join(os.path.dirname(robosuite.__file__), os.pardir))
+    xml_base_path = os.path.join(base_path, 'robosuite/models/assets/objects')
+    
+    name, _ = get_model_name_and_type(model_path)
+    
+    # load template xml
+    tree = ET.parse(os.path.join(xml_base_path, 'template.xml'))
+    root = tree.getroot()
+    
+    # set model name
+    root.attrib["model"] = name
+    
+    # set mesh file, name, and scale
+    asset = root.find('asset')
+    for mesh in asset.iter('mesh'):
+        for k in ['name', 'file']:
+            mesh.attrib[k] = mesh.attrib[k].replace('template', name)
+        mesh.attrib['scale'] = '{sc} {sc} {sc}'.format(sc=info['scaling'])
+        
+    worldbody = root.find('worldbody')
+    body = worldbody.find('body').find('body')
+    for geom in body.iter('geom'):
+        for k in ['mesh', 'name']:
+            geom.attrib[k] = geom.attrib[k].replace('template', name)
+    
+    # save xml for new model
+    tree.write(
+        os.path.join(xml_base_path, '{}.xml'.format(name)),
+        encoding="utf-8"
+    )
+    
 
 # input args
-input_mesh_path = '/Users/soroushnasiriany/research/robosuite/robosuite/models/assets/objects/meshes/blender.stl'
+model_path = '/Users/soroushnasiriany/research/robosuite/robosuite/models/assets/objects/meshes/blender/blender.stl'
 show = False
-
-# load input mesh
-resolver = trimesh.resolvers.FilePathResolver(os.path.dirname(input_mesh_path))
-input_mesh = trimesh.load(input_mesh_path, resolver=resolver)
-
-# generate and export convex hull and bounding box
-conv_hull = input_mesh.convex_hull
-bb = conv_hull.bounding_box_oriented
-conv_hull.export(input_mesh_path[:-4] + '_collision.stl')
-bb.export(input_mesh_path[:-4] + '_bb.stl')
-
-# get bounding box information
-ext = np.array(bb.primitive.extents)
-transform = np.array(bb.primitive.transform)
-
-center = transform[:-1,3]
-rot = transform[:3,:3]
-
-# scaling of mesh
 scaling = 0.04
 
-print("center:", center * scaling)
-
-# get the axes
-print()
-axes = []
-for i in range(3):
-    axes.append(rot[:,i] * ext[i] / 2)
-    print("axis {}:".format(i+1), (axes[i] + center) * scaling)
-
-# get the bounding box corners
-print()
-for i, (m0, m1, m2) in enumerate(itertools.product(*[[-1, 1], [-1, 1], [-1, 1]])):
-    p = center + (axes[0] * m0) + (axes[1] * m1) + (axes[2] * m2)
-    print("corner {}:".format(i+1), p * scaling)
-
-# display the visual mesh, convex hull mesh, and bounding box
-if show:
-    input_mesh.show()
-    conv_hull.show()
-    (conv_hull + bb).show()
+info = generate_meshes_and_bb(model_path, show, scaling)
+generate_object_xml(model_path, info)
