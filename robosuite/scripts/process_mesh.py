@@ -62,7 +62,7 @@ def generate_meshes_and_bb(model_path, scaling, show_meshes=False, verbose=False
 
     # display the visual mesh, convex hull mesh, and bounding box
     if show_meshes:
-        vis_mesh.show()
+        model.show()
         coll_mesh.show()
         (coll_mesh + bb_mesh).show()
     
