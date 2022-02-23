@@ -4,15 +4,30 @@ import os
 import itertools
 import robosuite
 import argparse
-
+import shutil
 import xml.etree.ElementTree as ET
 
 from robosuite.scripts.convert_obj_to_msh import generate_msh_file
 
 def generate_meshes_and_bb(model_path, scaling, show_meshes=False, verbose=False):
-    _, type = get_model_name_and_type(model_path)
+    name, type = get_model_name_and_type(model_path)
     assert type in ['obj', 'stl']
-    
+        
+    cwd = os.getcwd()
+    home_robosuite_dir = cwd[:cwd.rfind("/")]
+    new_mesh_dir = home_robosuite_dir + '/models/assets/objects/meshes/' + name
+
+    # copy obj/stl and file to new file path
+    if model_path[:model_path.rfind("/")] != new_mesh_dir:
+        if not os.path.isdir(new_mesh_dir):
+            os.mkdir(new_mesh_dir)
+
+        shutil.copy(model_path, new_mesh_dir)
+        if type == 'obj':
+            shutil.copy(model_path[:model_path.rfind(".")] + '.mtl', new_mesh_dir)
+
+    model_path = new_mesh_dir + '/' + name + '.' + type
+
     # load input mesh
     resolver = trimesh.resolvers.FilePathResolver(os.path.dirname(model_path))
     model = trimesh.load(model_path, resolver=resolver)
@@ -104,6 +119,7 @@ def generate_object_xml(model_path, texture_file, info, show_all_meshes_in_xml, 
         if 'map_Kd' in texture_dict:
             texture_file = texture_dict['map_Kd']
             texture_from_mtl = True
+            
     # ------   pass in custom texture file or we read it directly from mtl -------
     # potential texture_file values
         # custom texture_file that was inputted by user (texture_file != None and texture_from_mtl = False)
