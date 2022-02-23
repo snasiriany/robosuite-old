@@ -4,15 +4,30 @@ import os
 import itertools
 import robosuite
 import argparse
-
+import shutil
 import xml.etree.ElementTree as ET
 
 from robosuite.scripts.convert_obj_to_msh import generate_msh_file
 
 def generate_meshes_and_bb(model_path, scaling, show_meshes=False, verbose=False):
-    _, type = get_model_name_and_type(model_path)
+    name, type = get_model_name_and_type(model_path)
     assert type in ['obj', 'stl']
-    
+        
+    cwd = os.getcwd()
+    home_robosuite_dir = cwd[:cwd.rfind("/")]
+    new_mesh_dir = home_robosuite_dir + '/models/assets/objects/meshes/' + name
+
+    # copy obj/stl and file to new file path
+    if model_path[:model_path.rfind("/")] != new_mesh_dir:
+        if not os.path.isdir(new_mesh_dir):
+            os.mkdir(new_mesh_dir)
+
+        shutil.copy(model_path, new_mesh_dir)
+        if type == 'obj':
+            shutil.copy(model_path[:model_path.rfind(".")] + '.mtl', new_mesh_dir)
+
+    model_path = new_mesh_dir + '/' + name + '.' + type
+
     # load input mesh
     resolver = trimesh.resolvers.FilePathResolver(os.path.dirname(model_path))
     model = trimesh.load(model_path, resolver=resolver)
@@ -83,12 +98,34 @@ def get_model_name_and_type(model_path):
     return split_name[0], split_name[1]
     
 
-def generate_object_xml(model_path, info, show_all_meshes_in_xml, verbose=False):
+def generate_object_xml(model_path, texture_file, info, show_all_meshes_in_xml, verbose=False):
     base_path = os.path.abspath(os.path.join(os.path.dirname(robosuite.__file__), os.pardir))
     xml_base_path = os.path.join(base_path, 'robosuite/models/assets/objects')
+    mtl_base_path = os.path.join(base_path, 'robosuite/models/assets/objects/meshes')
     
     name, _ = get_model_name_and_type(model_path)
-    
+
+    texture_from_mtl = False
+    if texture_file == None:
+        # get the texture used in the mtl file
+        mtl_file = os.path.join(mtl_base_path, name+'/'+name+'.mtl')
+        texture_dict = {}
+        with open(mtl_file, 'r') as f:
+            for i, line in enumerate(f.readlines()):
+                if i > 2:
+                    key, value = line.split(" ", 1)
+                    texture_dict[key] = value.strip()
+
+        if 'map_Kd' in texture_dict:
+            texture_file = texture_dict['map_Kd']
+            texture_from_mtl = True
+            
+    # ------   pass in custom texture file or we read it directly from mtl -------
+    # potential texture_file values
+        # custom texture_file that was inputted by user (texture_file != None and texture_from_mtl = False)
+        # texture_file from mtl (texture_file != None and texture_from_mtl = True)
+        # none if not custom texture file and nothing from mtl (otherwise)
+
     # load template xml
     tree = ET.parse(os.path.join(xml_base_path, 'template.xml'))
     root = tree.getroot()
@@ -102,13 +139,30 @@ def generate_object_xml(model_path, info, show_all_meshes_in_xml, verbose=False)
         for k in ['name', 'file']:
             mesh.attrib[k] = mesh.attrib[k].replace('template', name)
         mesh.attrib['scale'] = '{sc} {sc} {sc}'.format(sc=info['scaling'])
+
+    texture = asset.find('texture')
+    for k in ['name', 'file']:
+        if k == "file":
+            if texture_file != None and texture_from_mtl == False:
+                texture.attrib[k] = texture.attrib[k].replace('template.png', texture_file)
+            elif texture_file != None and texture_from_mtl == True:
+                texture.attrib[k] = texture_file
+            else:
+                texture.attrib[k] = texture.attrib[k].replace('template.png', 'ceramic.png')
+        else:
+            texture.attrib[k] = texture.attrib[k].replace('template', name)
+
+    material = asset.find('material')
+    for k in ['name', 'texture']:
+        material.attrib[k] = material.attrib[k].replace('template', name)
         
     worldbody = root.find('worldbody')
     body = worldbody.find('body').find('body')
     bb_geom = None
     for geom in body.iter('geom'):
-        for k in ['mesh', 'name']:
-            geom.attrib[k] = geom.attrib[k].replace('template', name)
+        for k in ['mesh', 'name', 'material']:
+            if k in geom.attrib:
+                geom.attrib[k] = geom.attrib[k].replace('template', name)
             
         if geom.attrib['name'].endswith('_boundingbox'):
             bb_geom = geom
@@ -143,6 +197,11 @@ if __name__ == "__main__":
         default=1.0,
     )
     parser.add_argument(
+        "--texture_file",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
         "--show_meshes",
         action="store_true",
     )
@@ -171,4 +230,4 @@ if __name__ == "__main__":
     # model_path = os.path.join(mesh_base_path, obj_name, '{}.obj'.format(obj_name))
 
     info = generate_meshes_and_bb(args.model_path, args.scale, args.show_meshes, args.verbose)
-    generate_object_xml(args.model_path, info, args.show_all_meshes_in_xml, args.verbose)
+    generate_object_xml(args.model_path, args.texture_file, info, args.show_all_meshes_in_xml, args.verbose)
