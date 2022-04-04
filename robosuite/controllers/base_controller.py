@@ -136,20 +136,23 @@ class Controller(object, metaclass=abc.ABCMeta):
 
             self.ee_pos = np.array(self.sim.data.site_xpos[self.sim.site_name2id(self.eef_name)])
             self.ee_ori_mat = np.array(self.sim.data.site_xmat[self.sim.site_name2id(self.eef_name)].reshape([3, 3]))
-            self.ee_pos_vel = np.array(self.sim.data.site_xvelp[self.sim.site_name2id(self.eef_name)])
-            self.ee_ori_vel = np.array(self.sim.data.site_xvelr[self.sim.site_name2id(self.eef_name)])
 
             self.joint_pos = np.array(self.sim.data.qpos[self.qpos_index])
             self.joint_vel = np.array(self.sim.data.qvel[self.qvel_index])
 
-            jacp = np.zeros(3 * self.sim.model.nv)
-            jacr = np.zeros(3 * self.sim.model.nv)
+            # (see https://github.com/openai/mujoco-py/blob/ab86d331c9a77ae412079c6e58b8771fe63747fc/mujoco_py/generated/wrappers.pxi#L2732)
+            jacp = np.zeros((3, self.sim.model.nv))
+            jacr = np.zeros((3, self.sim.model.nv))
             mujoco.mj_jacSite(self.sim.model, self.sim.data, jacp, jacr, self.sim.site_name2id(self.eef_name))
             self.J_pos = jacp[:, self.qvel_index]
             self.J_ori = jacr[:, self.qvel_index]
             self.J_full = np.array(np.vstack([self.J_pos, self.J_ori]))
 
-            mass_matrix = np.ndarray(shape=(len(self.sim.data.qvel) ** 2,), dtype=np.float64, order='C')
+            # (see https://github.com/openai/mujoco-py/blob/ab86d331c9a77ae412079c6e58b8771fe63747fc/mujoco_py/generated/wrappers.pxi#L3298)
+            self.ee_pos_vel = np.dot(jacp, np.array(self.sim.data.qvel))
+            self.ee_ori_vel = np.dot(jacr, np.array(self.sim.data.qvel))
+
+            mass_matrix = np.ndarray(shape=(self.sim.model.nv, self.sim.model.nv), dtype=np.float64, order='C')
             mujoco.mj_fullM(self.sim.model, mass_matrix, self.sim.data.qM)
             mass_matrix = np.reshape(mass_matrix, (len(self.sim.data.qvel), len(self.sim.data.qvel)))
             self.mass_matrix = mass_matrix[self.qvel_index, :][:, self.qvel_index]
