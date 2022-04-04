@@ -1,7 +1,7 @@
 import abc
 from collections.abc import Iterable
 import numpy as np
-import mujoco_py
+import mujoco
 import robosuite.utils.macros as macros
 
 
@@ -134,20 +134,23 @@ class Controller(object, metaclass=abc.ABCMeta):
         if self.new_update or force:
             self.sim.forward()
 
-            self.ee_pos = np.array(self.sim.data.site_xpos[self.sim.model.site_name2id(self.eef_name)])
-            self.ee_ori_mat = np.array(self.sim.data.site_xmat[self.sim.model.site_name2id(self.eef_name)].reshape([3, 3]))
-            self.ee_pos_vel = np.array(self.sim.data.site_xvelp[self.sim.model.site_name2id(self.eef_name)])
-            self.ee_ori_vel = np.array(self.sim.data.site_xvelr[self.sim.model.site_name2id(self.eef_name)])
+            self.ee_pos = np.array(self.sim.data.site_xpos[self.sim.site_name2id(self.eef_name)])
+            self.ee_ori_mat = np.array(self.sim.data.site_xmat[self.sim.site_name2id(self.eef_name)].reshape([3, 3]))
+            self.ee_pos_vel = np.array(self.sim.data.site_xvelp[self.sim.site_name2id(self.eef_name)])
+            self.ee_ori_vel = np.array(self.sim.data.site_xvelr[self.sim.site_name2id(self.eef_name)])
 
             self.joint_pos = np.array(self.sim.data.qpos[self.qpos_index])
             self.joint_vel = np.array(self.sim.data.qvel[self.qvel_index])
 
-            self.J_pos = np.array(self.sim.data.get_site_jacp(self.eef_name).reshape((3, -1))[:, self.qvel_index])
-            self.J_ori = np.array(self.sim.data.get_site_jacr(self.eef_name).reshape((3, -1))[:, self.qvel_index])
+            jacp = np.zeros(3 * self.sim.model.nv)
+            jacr = np.zeros(3 * self.sim.model.nv)
+            mujoco.mj_jacSite(self.sim.model, self.sim.data, jacp, jacr, self.sim.site_name2id(self.eef_name))
+            self.J_pos = jacp[:, self.qvel_index]
+            self.J_ori = jacr[:, self.qvel_index]
             self.J_full = np.array(np.vstack([self.J_pos, self.J_ori]))
 
             mass_matrix = np.ndarray(shape=(len(self.sim.data.qvel) ** 2,), dtype=np.float64, order='C')
-            mujoco_py.cymj._mj_fullM(self.sim.model, mass_matrix, self.sim.data.qM)
+            mujoco.mj_fullM(self.sim.model, mass_matrix, self.sim.data.qM)
             mass_matrix = np.reshape(mass_matrix, (len(self.sim.data.qvel), len(self.sim.data.qvel)))
             self.mass_matrix = mass_matrix[self.qvel_index, :][:, self.qvel_index]
 
