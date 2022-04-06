@@ -3,7 +3,7 @@ from collections import OrderedDict
 
 # from robosuite.utils import SimulationError, XMLError, MujocoPyRenderer
 from robosuite.utils import SimulationError, XMLError
-from robosuite.utils.sim_utils import MjSim
+from robosuite.utils.sim_utils import MjSim, MjRenderContextOffscreen
 import robosuite.utils.macros as macros
 import robosuite.utils.sim_utils as SU
 
@@ -277,7 +277,6 @@ class MujocoEnv(metaclass=EnvMeta):
                 self.viewer.set_camera(camera_id=self.sim.camera_name2id(self.render_camera))
 
         elif self.has_offscreen_renderer:
-            raise Exception("TODO: support an off-screen rendering mechanism here")
             if self.sim._render_context_offscreen is None:
                 render_context = MjRenderContextOffscreen(self.sim, device_id=self.render_gpu_device_id)
                 self.sim.add_render_context(render_context)

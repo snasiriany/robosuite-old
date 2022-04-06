@@ -9,6 +9,10 @@ import mujoco
 
 from robosuite.models.base import MujocoModel
 
+# DIRTY HACK copied from mujoco-py - a global lock on rendering
+from threading import Lock
+_MjSim_render_lock = Lock()
+
 
 def check_contact(sim, geoms_1, geoms_2=None):
     """
@@ -75,6 +79,143 @@ def get_contacts(sim, model):
     return contact_set
 
 
+class MjRenderContext:
+    """
+    Class that encapsulates rendering functionality for a
+    MuJoCo simulation.
+
+    See https://github.com/openai/mujoco-py/blob/4830435a169c1f3e3b5f9b58a7c3d9c39bdf4acb/mujoco_py/mjrendercontext.pyx
+    """
+    def __init__(self, sim, offscreen=True, device_id=-1):
+        assert offscreen, "only offscreen supported for now"
+        self.sim = sim
+        self.offscreen = offscreen
+        self.device_id = device_id
+
+        # setup GL context with defaults for now
+        self.gl_ctx = mujoco.GLContext(max_width=640, max_height=480)
+        self.gl_ctx.make_current()
+
+        # Ensure the model data has been updated so that there
+        # is something to render
+        sim.forward()
+        # make sure sim has this context
+        sim.add_render_context(self)
+
+        self.model = sim.model
+        self.data = sim.data
+
+        # create default scene
+        self.scn = mujoco.MjvScene(sim.model, maxgeom=1000)
+
+        # camera
+        self.cam = mujoco.MjvCamera()
+        self.cam.fixedcamid = 0
+        self.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
+
+        # options for visual / collision mesh can be set externally, e.g. vopt.geomgroup[0], vopt.geomgroup[1]
+        self.vopt = mujoco.MjvOption()
+
+        self.pert = mujoco.MjvPerturb()
+        self.pert.active = 0
+        self.pert.select = 0
+        self.pert.skinselect = -1
+
+        # self._markers = []
+        # self._overlay = {}
+
+        self._set_mujoco_context_and_buffers()
+
+    def _set_mujoco_context_and_buffers(self):
+        self.con = mujoco.MjrContext(self.model, mujoco.mjtFontScale.mjFONTSCALE_150)
+        mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN, self.con)
+
+    def update_offscreen_size(self, width, height):
+        if (width != self.con.offWidth) or (height != self.con.offHeight):
+            self.model.vis.global_.offwidth = width
+            self.model.vis.global_.offheight = height
+            self.con.free()
+            self._set_mujoco_context_and_buffers()
+
+    def render(self, width, height, camera_id=None, segmentation=False):
+        viewport = mujoco.MjrRect(0, 0, width, height)
+
+        # if self.sim.render_callback is not None:
+        #     self.sim.render_callback(self.sim, self)
+
+        # update width and height of rendering context if necessary
+        if width > self.con.offWidth or height > self.con.offHeight:
+            new_width = max(width, self.model.vis.global_.offwidth)
+            new_height = max(height, self.model.vis.global_.offheight)
+            self.update_offscreen_size(new_width, new_height)
+
+        if camera_id is not None:
+            if camera_id == -1:
+                self.cam.type = mujoco.mjtCamera.mjCAMERA_FREE
+            else:
+                self.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
+            self.cam.fixedcamid = camera_id
+
+        mujoco.mjv_updateScene(
+            self.model, self.data, self.vopt, self.pert,
+            self.cam, mujoco.mjtCatBit.mjCAT_ALL, self.scn)
+
+        if segmentation:
+            self.scn.flags[mujoco.mjtRndFlag.mjRND_SEGMENT] = 1
+            self.scn.flags[mujoco.mjtRndFlag.mjRND_IDCOLOR] = 1
+
+        # for marker_params in self._markers:
+        #     self._add_marker_to_scene(marker_params)
+        
+        mujoco.mjr_render(viewport=viewport, scn=self.scn, con=self.con)
+        # for gridpos, (text1, text2) in self._overlay.items():
+        #     mjr_overlay(const.FONTSCALE_150, gridpos, rect, text1.encode(), text2.encode(), &self._con)
+
+        if segmentation:
+            self.scn.flags[mujoco.mjtRndFlag.mjRND_SEGMENT] = 0
+            self.scn.flags[mujoco.mjtRndFlag.mjRND_IDCOLOR] = 0
+
+    def read_pixels(self, width, height, depth=False, segmentation=False):
+        viewport = mujoco.MjrRect(0, 0, width, height)
+        rgb_img = np.empty((height, width, 3), dtype=np.uint8)
+        depth_img = np.empty((height, width), dtype=np.float32) if depth else None
+        
+        mujoco.mjr_readPixels(rgb=rgb_img, depth=depth_img, viewport=viewport, con=self.con)
+
+        ret_img = rgb_img
+        if segmentation:
+            seg_img = (rgb_img[:, :, 0] + rgb_img[:, :, 1] * (2**8) + rgb_img[:, :, 2] * (2 ** 16))
+            seg_img[seg_img >= (self.scn.ngeom + 1)] = 0
+            seg_ids = np.full((self.scn.ngeom + 1, 2), fill_value=-1, dtype=np.int32)
+
+            for i in range(self.scn.ngeom):
+                geom = self.scn.geoms[i]
+                if geom.segid != -1:
+                    seg_ids[geom.segid + 1, 0] = geom.objtype
+                    seg_ids[geom.segid + 1, 1] = geom.objid
+            ret_img = seg_ids[seg_img]
+
+        if depth:
+            return (ret_img, depth_img)
+        else:
+            return ret_img
+
+    # def upload_texture(self, tex_id):
+    #     """ Uploads given texture to the GPU. """
+    #     self.opengl_context.make_context_current()
+    #     mjr_uploadTexture(self._model_ptr, &self._con, tex_id)
+
+    def __dealloc__(self):
+        # free GL context and mujoco rendering context
+        self.gl_ctx.free()
+        self.con.free()
+
+
+class MjRenderContextOffscreen(MjRenderContext):
+    def __init__(self, sim, device_id):
+        super().__init__(sim, offscreen=True, device_id=device_id)
+
+
 class MjSimState:
     """
     A mujoco simulation state.
@@ -118,6 +259,9 @@ class MjSim:
         """
         self.model = model
         self.data = mujoco.MjData(model)
+
+        # offscreen render context object
+        self._render_context_offscreen = None
 
         # make useful mappings such as _body_name2id and _body_id2name
         self.make_mappings()
@@ -191,6 +335,43 @@ class MjSim:
     def step(self, with_udd=True):
         """Step simulation."""
         mujoco.mj_step(self.model, self.data)
+
+    def render(self, width=None, height=None, *, camera_name=None, depth=False,
+               mode='offscreen', device_id=-1, segmentation=False):
+        """
+        Renders view from a camera and returns image as an `numpy.ndarray`.
+        Args:
+        - width (int): desired image width.
+        - height (int): desired image height.
+        - camera_name (str): name of camera in model. If None, the free
+            camera will be used.
+        - depth (bool): if True, also return depth buffer
+        - device (int): device to use for rendering (only for GPU-backed
+            rendering).
+        Returns:
+        - rgb (uint8 array): image buffer from camera
+        - depth (float array): depth buffer from camera (only returned
+            if depth=True)
+        """
+        if camera_name is None:
+            camera_id = None
+        else:
+            camera_id = self.camera_name2id(camera_name)
+
+        assert mode == "offscreen", "only offscreen supported for now"
+        assert self._render_context_offscreen is not None
+        with _MjSim_render_lock:
+            self._render_context_offscreen.render(
+                width=width, height=height, camera_id=camera_id, segmentation=segmentation)
+            return self._render_context_offscreen.read_pixels(
+                width, height, depth=depth, segmentation=segmentation)
+
+    def add_render_context(self, render_context):
+        assert render_context.offscreen
+        if self._render_context_offscreen is not None:
+            # free context
+            del self._render_context_offscreen
+        self._render_context_offscreen = render_context
 
     def get_state(self):
         """Return MjSimState instance for current state."""
