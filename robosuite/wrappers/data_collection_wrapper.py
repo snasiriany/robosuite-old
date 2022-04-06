@@ -8,7 +8,6 @@ import time
 import numpy as np
 
 from robosuite.wrappers import Wrapper
-from robosuite.utils.mjcf_utils import save_sim_model
 
 
 class DataCollectionWrapper(Wrapper):
@@ -65,7 +64,7 @@ class DataCollectionWrapper(Wrapper):
         self.has_interaction = False
 
         # save the task instance (will be saved on the first env interaction)
-        self._current_task_instance_xml = self.env.sim.model.get_xml()
+        self._current_task_instance_xml = self.env.sim.get_xml()
         self._current_task_instance_state = np.array(self.env.sim.get_state().flatten())
 
         # trick for ensuring that we can play MuJoCo demonstrations back

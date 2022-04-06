@@ -92,7 +92,7 @@ class VisualizationWrapper(Wrapper):
         assert indicator in indicator_names, "Invalid indicator name specified. Valid options are {}, got {}".\
             format(indicator_names, indicator)
         # Set the specified indicator
-        self.env.sim.model.body_pos[self.env.sim.model.body_name2id(indicator + "_body")] = np.array(pos)
+        self.env.sim.model.body_pos[self.env.sim.body_name2id(indicator + "_body")] = np.array(pos)
 
     def get_visualization_settings(self):
         """

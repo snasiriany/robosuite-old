@@ -238,16 +238,16 @@ class ManipulationEnv(RobotEnv):
             np.array or float: (Cartesian or Euclidean) distance from gripper to target
         """
         # Get gripper and target positions
-        gripper_pos = self.sim.data.get_site_xpos(gripper.important_sites["grip_site"])
+        gripper_pos = self.sim.get_site_xpos(gripper.important_sites["grip_site"])
         # If target is MujocoModel, grab the correct body as the target and find the target position
         if isinstance(target, MujocoModel):
-            target_pos = self.sim.data.get_body_xpos(target.root_body)
+            target_pos = self.sim.get_body_xpos(target.root_body)
         elif target_type == "body":
-            target_pos = self.sim.data.get_body_xpos(target)
+            target_pos = self.sim.get_body_xpos(target)
         elif target_type == "site":
-            target_pos = self.sim.data.get_site_xpos(target)
+            target_pos = self.sim.get_site_xpos(target)
         else:
-            target_pos = self.sim.data.get_geom_xpos(target)
+            target_pos = self.sim.get_geom_xpos(target)
         # Calculate distance
         diff = target_pos - gripper_pos
         # Return appropriate value
@@ -266,16 +266,16 @@ class ManipulationEnv(RobotEnv):
                 refers to.
         """
         # Get gripper and target positions
-        gripper_pos = self.sim.data.get_site_xpos(gripper.important_sites["grip_site"])
+        gripper_pos = self.sim.get_site_xpos(gripper.important_sites["grip_site"])
         # If target is MujocoModel, grab the correct body as the target and find the target position
         if isinstance(target, MujocoModel):
-            target_pos = self.sim.data.get_body_xpos(target.root_body)
+            target_pos = self.sim.get_body_xpos(target.root_body)
         elif target_type == "body":
-            target_pos = self.sim.data.get_body_xpos(target)
+            target_pos = self.sim.get_body_xpos(target)
         elif target_type == "site":
-            target_pos = self.sim.data.get_site_xpos(target)
+            target_pos = self.sim.get_site_xpos(target)
         else:
-            target_pos = self.sim.data.get_geom_xpos(target)
+            target_pos = self.sim.get_geom_xpos(target)
         # color the gripper site appropriately based on (squared) distance to target
         dist = np.sum(np.square((target_pos - gripper_pos)))
         max_dist = 0.1
@@ -283,7 +283,7 @@ class ManipulationEnv(RobotEnv):
         rgba = np.zeros(3)
         rgba[0] = 1 - scaled
         rgba[1] = scaled
-        self.sim.model.site_rgba[self.sim.model.site_name2id(gripper.important_sites["grip_site"])][:3] = rgba
+        self.sim.model.site_rgba[self.sim.site_name2id(gripper.important_sites["grip_site"])][:3] = rgba
 
     def _check_robot_configuration(self, robots):
         """

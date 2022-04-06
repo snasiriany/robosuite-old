@@ -3,7 +3,8 @@ Defines GripperTester that is used to test the physical properties of various gr
 """
 import numpy as np
 import xml.etree.ElementTree as ET
-from mujoco_py import MjSim, MjViewer
+# from mujoco_py import MjSim, MjViewer
+from robosuite.utils.sim_utils import MjSim
 
 from robosuite.models.world import MujocoWorldBase
 from robosuite.models.arenas.table_arena import TableArena
@@ -117,9 +118,9 @@ class GripperTester:
         """
         Starts simulation of the test world
         """
-        model = self.world.get_model(mode="mujoco_py")
+        model_xml = self.world.get_xml()
 
-        self.sim = MjSim(model)
+        self.sim = MjSim.from_xml_string(model_xml)
         if self.render:
             self.viewer = MjViewer(self.sim)
         self.sim_state = self.sim.get_state()
@@ -127,20 +128,20 @@ class GripperTester:
         # For gravity correction
         gravity_corrected = ["gripper_z_joint"]
         self._gravity_corrected_qvels = [
-            self.sim.model.get_joint_qvel_addr(x) for x in gravity_corrected
+            self.sim.get_joint_qvel_addr(x) for x in gravity_corrected
         ]
 
-        self.gripper_z_id = self.sim.model.actuator_name2id("gripper_z")
+        self.gripper_z_id = self.sim.actuator_name2id("gripper_z")
         self.gripper_z_is_low = False
 
         self.gripper_actuator_ids = [
-            self.sim.model.actuator_name2id(x) for x in self.gripper.actuators
+            self.sim.actuator_name2id(x) for x in self.gripper.actuators
         ]
 
         self.gripper_is_closed = True
 
-        self.object_id = self.sim.model.body_name2id(self.cube.root_body)
-        object_default_pos = self.sim.data.body_xpos[self.object_id]
+        self.object_id = self.sim.body_name2id(self.cube.root_body)
+        object_default_pos = self.sim.data.xpos[self.object_id]
         self.object_default_pos = np.array(object_default_pos,
                                            copy=True)
 
@@ -234,5 +235,5 @@ class GripperTester:
         Returns:
             float: Object height relative to default (ground) object position
         """
-        return self.sim.data.body_xpos[self.object_id][2]\
+        return self.sim.data.xpos[self.object_id][2]\
             - self.object_default_pos[2]

@@ -1,8 +1,9 @@
 from collections import OrderedDict
-from mujoco_py import MjSim, MjRenderContextOffscreen
-from mujoco_py import load_model_from_xml
+# from mujoco_py import MjSim, MjRenderContextOffscreen
 
-from robosuite.utils import SimulationError, XMLError, MujocoPyRenderer
+# from robosuite.utils import SimulationError, XMLError, MujocoPyRenderer
+from robosuite.utils import SimulationError, XMLError
+from robosuite.utils.sim_utils import MjSim
 import robosuite.utils.macros as macros
 import robosuite.utils.sim_utils as SU
 
@@ -213,10 +214,10 @@ class MujocoEnv(metaclass=EnvMeta):
             xml_string (str): If specified, creates MjSim object from this filepath
         """
         # if we have an xml string, use that to create the sim. Otherwise, use the local model
-        self.mjpy_model = load_model_from_xml(xml_string) if xml_string else self.model.get_model(mode="mujoco_py")
+        xml = xml_string if xml_string else self.model.get_xml()
 
         # Create the simulation instance and run a single step to make sure changes have propagated through sim state
-        self.sim = MjSim(self.mjpy_model)
+        self.sim = MjSim.from_xml_string(xml)
         self.sim.forward()
 
         # Setup sim time based on control frequency
@@ -259,6 +260,7 @@ class MujocoEnv(metaclass=EnvMeta):
 
         # create visualization screen or renderer
         if self.has_renderer and self.viewer is None:
+            raise Exception("not supporting on-screen rendering for new mujoco binding right now")
             self.viewer = MujocoPyRenderer(self.sim)
             self.viewer.viewer.vopt.geomgroup[0] = (1 if self.render_collision_mesh else 0)
             self.viewer.viewer.vopt.geomgroup[1] = (1 if self.render_visual_mesh else 0)
@@ -272,9 +274,10 @@ class MujocoEnv(metaclass=EnvMeta):
 
             # Set the camera angle for viewing
             if self.render_camera is not None:
-                self.viewer.set_camera(camera_id=self.sim.model.camera_name2id(self.render_camera))
+                self.viewer.set_camera(camera_id=self.sim.camera_name2id(self.render_camera))
 
         elif self.has_offscreen_renderer:
+            raise Exception("TODO: support an off-screen rendering mechanism here")
             if self.sim._render_context_offscreen is None:
                 render_context = MjRenderContextOffscreen(self.sim, device_id=self.render_gpu_device_id)
                 self.sim.add_render_context(render_context)
@@ -468,7 +471,7 @@ class MujocoEnv(metaclass=EnvMeta):
         object_names = {object_names} if type(object_names) is str else set(object_names)
         for obj in self.model.mujoco_objects:
             if obj.name in object_names:
-                self.sim.data.set_joint_qpos(obj.joints[0], np.array((10, 10, 10, 1, 0, 0, 0)))
+                self.sim.set_joint_qpos(obj.joints[0], np.array((10, 10, 10, 1, 0, 0, 0)))
 
     def visualize(self, vis_settings):
         """

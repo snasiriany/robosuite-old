@@ -9,10 +9,10 @@ Example:
 import argparse
 import os
 
-from mujoco_py import load_model_from_path
-from mujoco_py import MjSim, MjViewer
+from mujoco_py import MjViewer
 
 import robosuite as suite
+from robosuite.utils.sim_utils import MjSim
 
 
 if __name__ == "__main__":
@@ -23,8 +23,7 @@ if __name__ == "__main__":
     parser.add_argument("--filepath", type=str, default=arena_file)
     args = parser.parse_args()
 
-    model = load_model_from_path(args.filepath)
-    sim = MjSim(model)
+    sim = MjSim.from_xml_file(args.filepath)
     viewer = MjViewer(sim)
 
     print("Press ESC to exit...")

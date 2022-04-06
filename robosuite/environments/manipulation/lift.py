@@ -225,7 +225,7 @@ class Lift(SingleArmEnv):
         elif self.reward_shaping:
 
             # reaching reward
-            cube_pos = self.sim.data.body_xpos[self.cube_body_id]
+            cube_pos = self.sim.data.xpos[self.cube_body_id]
             gripper_site_pos = self.sim.data.site_xpos[self.robots[0].eef_site_id]
             dist = np.linalg.norm(gripper_site_pos - cube_pos)
             reaching_reward = 1 - np.tanh(10.0 * dist)
@@ -318,7 +318,7 @@ class Lift(SingleArmEnv):
         super()._setup_references()
 
         # Additional object references from this env
-        self.cube_body_id = self.sim.model.body_name2id(self.cube.root_body)
+        self.cube_body_id = self.sim.body_name2id(self.cube.root_body)
 
     def _setup_observables(self):
         """
@@ -338,11 +338,11 @@ class Lift(SingleArmEnv):
             # cube-related observables
             @sensor(modality=modality)
             def cube_pos(obs_cache):
-                return np.array(self.sim.data.body_xpos[self.cube_body_id])
+                return np.array(self.sim.data.xpos[self.cube_body_id])
 
             @sensor(modality=modality)
             def cube_quat(obs_cache):
-                return convert_quat(np.array(self.sim.data.body_xquat[self.cube_body_id]), to="xyzw")
+                return convert_quat(np.array(self.sim.data.xquat[self.cube_body_id]), to="xyzw")
 
             @sensor(modality=modality)
             def gripper_to_cube_pos(obs_cache):
@@ -376,7 +376,7 @@ class Lift(SingleArmEnv):
 
             # Loop through all objects and reset their positions
             for obj_pos, obj_quat, obj in object_placements.values():
-                self.sim.data.set_joint_qpos(obj.joints[0], np.concatenate([np.array(obj_pos), np.array(obj_quat)]))
+                self.sim.set_joint_qpos(obj.joints[0], np.concatenate([np.array(obj_pos), np.array(obj_quat)]))
 
     def visualize(self, vis_settings):
         """
@@ -401,7 +401,7 @@ class Lift(SingleArmEnv):
         Returns:
             bool: True if cube has been lifted
         """
-        cube_height = self.sim.data.body_xpos[self.cube_body_id][2]
+        cube_height = self.sim.data.xpos[self.cube_body_id][2]
         table_height = self.model.mujoco_arena.table_offset[2]
 
         # cube is higher than the table top above a margin

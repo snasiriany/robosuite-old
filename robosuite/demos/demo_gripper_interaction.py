@@ -70,9 +70,9 @@ if __name__ == "__main__":
     world.worldbody.append(y_ref)
 
     # start simulation
-    model = world.get_model(mode="mujoco_py")
+    model_xml = world.get_xml()
 
-    sim = MjSim(model)
+    sim = MjSim.from_xml_string(model_xml)
     viewer = MjViewer(sim)
     sim_state = sim.get_state()
 
@@ -83,13 +83,13 @@ if __name__ == "__main__":
     ]
 
     # Set gripper parameters
-    gripper_z_id = sim.model.actuator_name2id("gripper_z")
+    gripper_z_id = sim.actuator_name2id("gripper_z")
     gripper_z_low = 0.07
     gripper_z_high = -0.02
     gripper_z_is_low = False
 
     gripper_jaw_ids = [
-        sim.model.actuator_name2id(x) for x in gripper.actuators
+        sim.actuator_name2id(x) for x in gripper.actuators
     ]
     gripper_open = [-0.0115, 0.0115]
     gripper_closed = [0.020833, -0.020833]
@@ -108,8 +108,8 @@ if __name__ == "__main__":
             # Get contact information
             for contact in sim.data.contact[0 : sim.data.ncon]:
 
-                geom_name1 = sim.model.geom_id2name(contact.geom1)
-                geom_name2 = sim.model.geom_id2name(contact.geom2)
+                geom_name1 = sim.geom_id2name(contact.geom1)
+                geom_name2 = sim.geom_id2name(contact.geom2)
                 if geom_name1 == "floor" and geom_name2 == "floor":
                     continue
 

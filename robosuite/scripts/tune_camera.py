@@ -260,7 +260,7 @@ if __name__ == "__main__":
     )
     env.reset()
     initial_mjstate = env.sim.get_state().flatten()
-    xml = env.sim.model.get_xml()
+    xml = env.sim.get_xml()
 
     # add body to camera to be able to move it around
     xml = modify_xml_for_camera_movement(xml, camera_name=CAMERA_NAME)

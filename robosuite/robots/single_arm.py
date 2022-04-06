@@ -205,19 +205,19 @@ class SingleArm(Manipulator):
         if self.has_gripper:
             self.gripper_joints = list(self.gripper.joints)
             self._ref_gripper_joint_pos_indexes = [
-                self.sim.model.get_joint_qpos_addr(x) for x in self.gripper_joints
+                self.sim.get_joint_qpos_addr(x) for x in self.gripper_joints
             ]
             self._ref_gripper_joint_vel_indexes = [
-                self.sim.model.get_joint_qvel_addr(x) for x in self.gripper_joints
+                self.sim.get_joint_qvel_addr(x) for x in self.gripper_joints
             ]
             self._ref_joint_gripper_actuator_indexes = [
-                self.sim.model.actuator_name2id(actuator)
+                self.sim.actuator_name2id(actuator)
                 for actuator in self.gripper.actuators
             ]
 
         # IDs of sites for eef visualization
-        self.eef_site_id = self.sim.model.site_name2id(self.gripper.important_sites["grip_site"])
-        self.eef_cylinder_id = self.sim.model.site_name2id(self.gripper.important_sites["grip_cylinder"])
+        self.eef_site_id = self.sim.site_name2id(self.gripper.important_sites["grip_site"])
+        self.eef_cylinder_id = self.sim.site_name2id(self.gripper.important_sites["grip_cylinder"])
 
     def control(self, action, policy_step=False):
         """
@@ -311,15 +311,15 @@ class SingleArm(Manipulator):
 
         @sensor(modality=modality)
         def eef_quat(obs_cache):
-            return T.convert_quat(self.sim.data.get_body_xquat(self.robot_model.eef_name), to="xyzw")
+            return T.convert_quat(self.sim.get_body_xquat(self.robot_model.eef_name), to="xyzw")
 
         @sensor(modality=modality)
         def eef_vel_lin(obs_cache):
-            return np.array(self.sim.data.get_body_xvelp(self.robot_model.eef_name))
+            return np.array(self.sim.get_body_xvelp(self.robot_model.eef_name))
 
         @sensor(modality=modality)
         def eef_vel_ang(obs_cache):
-            return np.array(self.sim.data.get_body_xvelr(self.robot_model.eef_name))
+            return np.array(self.sim.get_body_xvelr(self.robot_model.eef_name))
 
         sensors = [eef_pos, eef_quat, eef_vel_lin, eef_vel_ang]
         names = [f"{pf}eef_pos", f"{pf}eef_quat", f"{pf}eef_vel_lin", f"{pf}eef_vel_ang"]
@@ -417,10 +417,10 @@ class SingleArm(Manipulator):
         """
 
         # Use jacobian to translate joint velocities to end effector velocities.
-        Jp = self.sim.data.get_body_jacp(self.robot_model.eef_name).reshape((3, -1))
+        Jp = self.sim.get_body_jacp(self.robot_model.eef_name).reshape((3, -1))
         Jp_joint = Jp[:, self._ref_joint_vel_indexes]
 
-        Jr = self.sim.data.get_body_jacr(self.robot_model.eef_name).reshape((3, -1))
+        Jr = self.sim.get_body_jacr(self.robot_model.eef_name).reshape((3, -1))
         Jr_joint = Jr[:, self._ref_joint_vel_indexes]
 
         eef_lin_vel = Jp_joint.dot(self._joint_velocities)

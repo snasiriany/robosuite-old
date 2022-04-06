@@ -10,7 +10,8 @@ Example:
 import os
 import sys
 from shutil import copyfile
-from mujoco_py import load_model_from_path
+
+from robosuite.utils.sim_utils import MjSim
 
 
 def print_usage():
@@ -30,8 +31,8 @@ if __name__ == "__main__":
     tempfile = os.path.join(input_folder, ".robosuite_temp_model.xml")
     copyfile(input_file, tempfile)
 
-    model = load_model_from_path(tempfile)
-    xml_string = model.get_xml()
+    sim = MjSim.from_xml_file(tempfile)
+    xml_string = sim.get_xml()
     with open(output_file, "w") as f:
         f.write(xml_string)
 

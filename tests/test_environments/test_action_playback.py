@@ -31,7 +31,7 @@ def test_playback():
     env.reset()
 
     # task instance
-    task_xml = env.sim.model.get_xml()
+    task_xml = env.sim.get_xml()
     task_init_state = np.array(env.sim.get_state().flatten())
 
     # trick for ensuring that we can play MuJoCo demonstrations back

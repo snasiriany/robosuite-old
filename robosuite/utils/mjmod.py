@@ -1536,7 +1536,7 @@ class DynamicsModder(BaseModder):
         self.dummy_bodies = set()
         # Find all bodies that don't have any mass associated with them
         for body_name in self.sim.model.body_names:
-            body_id = self.sim.model.body_name2id(body_name)
+            body_id = self.sim.body_name2id(body_name)
             if self.sim.model.body_mass[body_id] == 0:
                 self.dummy_bodies.add(body_name)
 
@@ -1609,7 +1609,7 @@ class DynamicsModder(BaseModder):
 
         self.body_defaults = {}
         for body_name in self.sim.model.body_names:
-            body_id = self.sim.model.body_name2id(body_name)
+            body_id = self.sim.body_name2id(body_name)
             self.body_defaults[body_name] = {
                 "position": np.array(self.sim.model.body_pos[body_id]),
                 "quaternion": np.array(self.sim.model.body_quat[body_id]),
@@ -1628,7 +1628,7 @@ class DynamicsModder(BaseModder):
 
         self.joint_defaults = {}
         for joint_name in self.sim.model.joint_names:
-            joint_id = self.sim.model.joint_name2id(joint_name)
+            joint_id = self.sim.joint_name2id(joint_name)
             dof_idx = [i for i, v in enumerate(self.sim.model.dof_jntid) if v == joint_id]
             self.joint_defaults[joint_name] = {
                 "stiffness": self.sim.model.jnt_stiffness[joint_id],
@@ -1750,7 +1750,7 @@ class DynamicsModder(BaseModder):
             val (3-array): New (x, y, z) relative position.
         """
         # Modify this value
-        body_id = self.sim.model.body_name2id(name)
+        body_id = self.sim.body_name2id(name)
         self.sim.model.body_pos[body_id] = np.array(val)
 
     def mod_quaternion(self, name, val=(1, 0, 0, 0)):
@@ -1767,7 +1767,7 @@ class DynamicsModder(BaseModder):
         # Normalize the inputted value
         val = np.array(val) / np.linalg.norm(val)
         # Modify this value
-        body_id = self.sim.model.body_name2id(name)
+        body_id = self.sim.body_name2id(name)
         self.sim.model.body_quat[body_id] = val
 
     def mod_inertia(self, name, val):
@@ -1781,7 +1781,7 @@ class DynamicsModder(BaseModder):
         """
         # Modify this value if it's not a dummy body
         if name not in self.dummy_bodies:
-            body_id = self.sim.model.body_name2id(name)
+            body_id = self.sim.body_name2id(name)
             self.sim.model.body_inertia[body_id] = np.array(val)
 
     def mod_mass(self, name, val):
@@ -1795,7 +1795,7 @@ class DynamicsModder(BaseModder):
         """
         # Modify this value if it's not a dummy body
         if name not in self.dummy_bodies:
-            body_id = self.sim.model.body_name2id(name)
+            body_id = self.sim.body_name2id(name)
             self.sim.model.body_mass[body_id] = val
 
     def mod_friction(self, name, val):
@@ -1808,7 +1808,7 @@ class DynamicsModder(BaseModder):
             val (3-array): New (sliding, torsional, rolling) friction values.
         """
         # Modify this value
-        geom_id = self.sim.model.geom_name2id(name)
+        geom_id = self.sim.geom_name2id(name)
         self.sim.model.geom_friction[geom_id] = np.array(val)
 
     def mod_solref(self, name, val):
@@ -1821,7 +1821,7 @@ class DynamicsModder(BaseModder):
             val (2-array): New (timeconst, dampratio) solref values.
         """
         # Modify this value
-        geom_id = self.sim.model.geom_name2id(name)
+        geom_id = self.sim.geom_name2id(name)
         self.sim.model.geom_solref[geom_id] = np.array(val)
 
     def mod_solimp(self, name, val):
@@ -1834,7 +1834,7 @@ class DynamicsModder(BaseModder):
             val (5-array): New (dmin, dmax, width, midpoint, power) solimp values.
         """
         # Modify this value
-        geom_id = self.sim.model.geom_name2id(name)
+        geom_id = self.sim.geom_name2id(name)
         self.sim.model.geom_solimp[geom_id] = np.array(val)
 
     def mod_stiffness(self, name, val):
@@ -1850,7 +1850,7 @@ class DynamicsModder(BaseModder):
             val (float): New stiffness.
         """
         # Modify this value (only if there is stiffness to begin with)
-        jnt_id = self.sim.model.joint_name2id(name)
+        jnt_id = self.sim.joint_name2id(name)
         if self.sim.model.jnt_stiffness[jnt_id] != 0:
             self.sim.model.jnt_stiffness[jnt_id] = val
 
@@ -1868,7 +1868,7 @@ class DynamicsModder(BaseModder):
             val (float): New friction loss.
         """
         # Modify this value (only if it's not a free joint)
-        jnt_id = self.sim.model.joint_name2id(name)
+        jnt_id = self.sim.joint_name2id(name)
         if self.sim.model.jnt_type[jnt_id] != 0:
             dof_idx = [i for i, v in enumerate(self.sim.model.dof_jntid) if v == jnt_id]
             self.sim.model.dof_frictionloss[dof_idx] = val
@@ -1887,7 +1887,7 @@ class DynamicsModder(BaseModder):
             val (float): New damping.
         """
         # Modify this value (only if it's not a free joint)
-        jnt_id = self.sim.model.joint_name2id(name)
+        jnt_id = self.sim.joint_name2id(name)
         if self.sim.model.jnt_type[jnt_id] != 0:
             dof_idx = [i for i, v in enumerate(self.sim.model.dof_jntid) if v == jnt_id]
             self.sim.model.dof_damping[dof_idx] = val
@@ -1902,7 +1902,7 @@ class DynamicsModder(BaseModder):
             val (float): New armature.
         """
         # Modify this value (only if it's not a free joint)
-        jnt_id = self.sim.model.joint_name2id(name)
+        jnt_id = self.sim.joint_name2id(name)
         if self.sim.model.jnt_type[jnt_id] != 0:
             dof_idx = [i for i, v in enumerate(self.sim.model.dof_jntid) if v == jnt_id]
             self.sim.model.dof_armature[dof_idx] = val

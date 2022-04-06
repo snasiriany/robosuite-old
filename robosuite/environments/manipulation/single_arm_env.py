@@ -52,9 +52,9 @@ class SingleArmEnv(ManipulationEnv):
         """
         pf = self.robots[0].robot_model.naming_prefix
         if self.env_configuration == "bimanual":
-            return np.array(self.sim.data.site_xmat[self.sim.model.site_name2id(pf + "right_ee")]).reshape(3, 3)
+            return np.array(self.sim.data.site_xmat[self.sim.site_name2id(pf + "right_ee")]).reshape(3, 3)
         else:
-            return np.array(self.sim.data.site_xmat[self.sim.model.site_name2id(pf + "ee")]).reshape(3, 3)
+            return np.array(self.sim.data.site_xmat[self.sim.site_name2id(pf + "ee")]).reshape(3, 3)
 
     @property
     def _eef_xquat(self):

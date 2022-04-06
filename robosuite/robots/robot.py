@@ -6,7 +6,7 @@ from robosuite.models.mounts import mount_factory
 from robosuite.utils.buffers import DeltaBuffer
 from robosuite.utils.observables import Observable, sensor
 
-from mujoco_py import MjSim
+from robosuite.utils.sim_utils import MjSim
 
 from robosuite.models.robots import create_robot
 
@@ -143,8 +143,8 @@ class Robot(object):
         self._load_controller()
 
         # Update base pos / ori references
-        self.base_pos = self.sim.data.get_body_xpos(self.robot_model.root_body)
-        self.base_ori = T.mat2quat(self.sim.data.get_body_xmat(self.robot_model.root_body).reshape((3, 3)))
+        self.base_pos = self.sim.get_body_xpos(self.robot_model.root_body)
+        self.base_ori = T.mat2quat(self.sim.get_body_xmat(self.robot_model.root_body).reshape((3, 3)))
 
         # Setup buffers to hold recent values
         self.recent_qpos = DeltaBuffer(dim=len(self.joint_indexes))
@@ -158,21 +158,21 @@ class Robot(object):
         # indices for joints in qpos, qvel
         self.robot_joints = self.robot_model.joints
         self._ref_joint_pos_indexes = [
-            self.sim.model.get_joint_qpos_addr(x) for x in self.robot_joints
+            self.sim.get_joint_qpos_addr(x) for x in self.robot_joints
         ]
         self._ref_joint_vel_indexes = [
-            self.sim.model.get_joint_qvel_addr(x) for x in self.robot_joints
+            self.sim.get_joint_qvel_addr(x) for x in self.robot_joints
         ]
 
         # indices for joint indexes
         self._ref_joint_indexes = [
-            self.sim.model.joint_name2id(joint)
+            self.sim.joint_name2id(joint)
             for joint in self.robot_model.joints
         ]
 
         # indices for joint pos actuation, joint vel actuation, gripper actuation
         self._ref_joint_actuator_indexes = [
-            self.sim.model.actuator_name2id(actuator)
+            self.sim.actuator_name2id(actuator)
             for actuator in self.robot_model.actuators
         ]
 
@@ -324,12 +324,12 @@ class Robot(object):
             np.array: (4,4) array corresponding to the pose of @name in the base frame
         """
 
-        pos_in_world = self.sim.data.get_body_xpos(name)
-        rot_in_world = self.sim.data.get_body_xmat(name).reshape((3, 3))
+        pos_in_world = self.sim.get_body_xpos(name)
+        rot_in_world = self.sim.get_body_xmat(name).reshape((3, 3))
         pose_in_world = T.make_pose(pos_in_world, rot_in_world)
 
-        base_pos_in_world = self.sim.data.get_body_xpos(self.robot_model.root_body)
-        base_rot_in_world = self.sim.data.get_body_xmat(self.robot_model.root_body).reshape((3, 3))
+        base_pos_in_world = self.sim.get_body_xpos(self.robot_model.root_body)
+        base_rot_in_world = self.sim.get_body_xmat(self.robot_model.root_body).reshape((3, 3))
         base_pose_in_world = T.make_pose(base_pos_in_world, base_rot_in_world)
         world_pose_in_base = T.pose_inv(base_pose_in_world)
 
@@ -393,6 +393,6 @@ class Robot(object):
             np.array: sensor values
         """
         sensor_idx = np.sum(
-            self.sim.model.sensor_dim[:self.sim.model.sensor_name2id(sensor_name)])
-        sensor_dim = self.sim.model.sensor_dim[self.sim.model.sensor_name2id(sensor_name)]
+            self.sim.model.sensor_dim[:self.sim.sensor_name2id(sensor_name)])
+        sensor_dim = self.sim.model.sensor_dim[self.sim.sensor_name2id(sensor_name)]
         return np.array(self.sim.data.sensordata[sensor_idx: sensor_idx + sensor_dim])
