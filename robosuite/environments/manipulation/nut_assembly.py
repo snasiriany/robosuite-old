@@ -168,6 +168,7 @@ class NutAssembly(SingleArmEnv):
         camera_heights=256,
         camera_widths=256,
         camera_depths=False,
+        reset_config=None,
     ):
         # task settings
         self.single_object_mode = single_object_mode
@@ -194,6 +195,12 @@ class NutAssembly(SingleArmEnv):
 
         # object placement initializer
         self.placement_initializer = placement_initializer
+
+        # reset configuration
+        if reset_config is None:
+            self.reset_config = {}
+        else:
+            self.reset_config = reset_config
 
         super().__init__(
             robots=robots,
@@ -384,13 +391,18 @@ class NutAssembly(SingleArmEnv):
         # Create default (SequentialCompositeSampler) sampler if it has not already been specified
         if self.placement_initializer is None:
             self.placement_initializer = SequentialCompositeSampler(name="ObjectSampler")
-            for nut_name, default_y_range in zip(nut_names, ([0.11, 0.225], [-0.225, -0.11])):
+
+            square_y_range = self.reset_config.get('square_y_range', [0.11, 0.225])
+            round_y_range = self.reset_config.get('round_y_range', [-0.225, -0.11])
+            rotation = self.reset_config.get('rotation', None)
+
+            for nut_name, default_y_range in zip(nut_names, (square_y_range, round_y_range)):
                 self.placement_initializer.append_sampler(
                     sampler=UniformRandomSampler(
                         name=f"{nut_name}Sampler",
                         x_range=[-0.115, -0.11],
                         y_range=default_y_range,
-                        rotation=None,
+                        rotation=rotation,
                         rotation_axis='z',
                         ensure_object_boundary_in_range=False,
                         ensure_valid_placement=True,
