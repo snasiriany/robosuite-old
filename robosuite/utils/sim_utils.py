@@ -95,7 +95,7 @@ class MjRenderContext:
         if offscreen:
             if self.device_id is not None and self.device_id >= 0:
                 os.environ["MUJOCO_GL"] = "egl"
-                os.environ['MUJOCO_EGL_DEVICE_ID'] = self.device_id
+                os.environ['MUJOCO_EGL_DEVICE_ID'] = str(self.device_id)
             else:
                 os.environ["MUJOCO_GL"] = "osmesa"
 
