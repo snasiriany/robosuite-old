@@ -92,6 +92,13 @@ class MjRenderContext:
         self.offscreen = offscreen
         self.device_id = device_id
 
+        if offscreen:
+            if self.device_id is not None and self.device_id >= 0:
+                os.environ["MUJOCO_GL"] = "egl"
+                os.environ['MUJOCO_EGL_DEVICE_ID'] = self.device_id
+            else:
+                os.environ["MUJOCO_GL"] = "osmesa"
+
         # setup GL context with defaults for now
         self.gl_ctx = mujoco.GLContext(max_width=640, max_height=480)
         self.gl_ctx.make_current()
