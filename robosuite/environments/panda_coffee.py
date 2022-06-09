@@ -327,6 +327,7 @@ class PandaCoffee(PandaEnv):
         """
         super()._get_reference()
         self.object_body_ids = {}
+
         self.object_body_ids["coffee_pod_holder"] = self.sim.model.body_name2id("coffee_machine_4")
         self.object_body_ids["coffee_pod"] = self.sim.model.body_name2id("coffee_pod")
         self.hinge_qpos_addr = self.sim.model.get_joint_qpos_addr("coffee_machine_1_0")
@@ -438,9 +439,14 @@ class PandaCoffee(PandaEnv):
             world_pose_in_gripper = T.pose_inv(gripper_pose)
 
             # add pose and relative poses of relevant bodies
-            for k in self.object_body_ids:
+            addl_object_body_ids = dict(
+                coffee_machine_base=self.sim.model.body_name2id("coffee_machine"),
+                lid=self.sim.model.body_name2id("coffee_machine_1"),
+            )
+            object_body_ids = deepcopy(self.object_body_ids)
+            object_body_ids.update(addl_object_body_ids)
+            for (k, body_id) in object_body_ids.items():
                 # position and rotation of the relevant bodies
-                body_id = self.object_body_ids[k]
                 body_pos = np.array(self.sim.data.body_xpos[body_id])
                 body_quat = T.convert_quat(
                     np.array(self.sim.data.body_xquat[body_id]), to="xyzw"
@@ -457,6 +463,7 @@ class PandaCoffee(PandaEnv):
                 di["{}_to_eef_quat".format(k)] = rel_quat
                 di["{}_to_eef_quat_col".format(k)] = T.quat2col(rel_quat)
 
+            for k in self.object_body_ids:
                 object_state_keys.append("{}_pos".format(k))
                 object_state_keys.append("{}_quat".format(k))
                 object_state_keys.append("{}_to_eef_pos".format(k))
@@ -467,6 +474,13 @@ class PandaCoffee(PandaEnv):
                 object_state_col_keys.append("{}_to_eef_pos".format(k))
                 object_state_col_keys.append("{}_to_eef_quat_col".format(k))
 
+            addl_object_state_keys = []
+            for k in addl_object_body_ids:
+                addl_object_state_keys.append("{}_pos".format(k))
+                addl_object_state_keys.append("{}_quat".format(k))
+                addl_object_state_keys.append("{}_to_eef_pos".format(k))
+                addl_object_state_keys.append("{}_to_eef_quat".format(k))
+
             # add hinge angle of lid
             di["hinge_angle"] = np.array([self.sim.data.qpos[self.hinge_qpos_addr]])
             object_state_keys.append("hinge_angle")
@@ -474,6 +488,7 @@ class PandaCoffee(PandaEnv):
 
             di["object-state"] = np.concatenate([di[k] for k in object_state_keys])
             di["object-state-col"] = np.concatenate([di[k] for k in object_state_col_keys])
+            di["addl-object-state"] = np.concatenate([di[k] for k in addl_object_state_keys])
 
         return di
 

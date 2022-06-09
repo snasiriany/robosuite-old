@@ -114,3 +114,4 @@ mjkey.txt
 .pytest_cache/
 
 MUJOCO_LOG.TXT
+robosuite/models/assets/demonstrations/*
