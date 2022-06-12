@@ -210,7 +210,13 @@ class MujocoEnv(metaclass=EnvMeta):
 
         elif self.has_offscreen_renderer:
             if self.sim._render_context_offscreen is None:
-                device_id = egl_probe.get_available_devices()[0]
+                import os
+                cuda_id = os.environ.get('CUDA_VISIBLE_DEVICES')
+                if cuda_id is None or len(cuda_id) == 0:
+                    device_id = -1
+                else:
+                    device_id = int(cuda_id)
+                # device_id = egl_probe.get_available_devices()[0]
                 render_context = MjRenderContextOffscreen(self.sim, device_id=device_id)
                 self.sim.add_render_context(render_context)
             self.sim._render_context_offscreen.vopt.geomgroup[0] = (
