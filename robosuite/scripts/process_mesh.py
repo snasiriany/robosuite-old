@@ -112,9 +112,8 @@ def generate_object_xml(model_path, texture_file, info, show_all_meshes_in_xml, 
         texture_dict = {}
         with open(mtl_file, 'r') as f:
             for i, line in enumerate(f.readlines()):
-                if i > 2:
-                    key, value = line.split(" ", 1)
-                    texture_dict[key] = value.strip()
+                key, value = line.split(" ", 1)
+                texture_dict[key] = value.strip()
 
         if 'map_Kd' in texture_dict:
             texture_file = texture_dict['map_Kd']
